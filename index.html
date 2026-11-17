@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Kodama</title>
+  <meta name="description" content="英語を話すと、すぐに自分の声で聞き返せる発音練習アプリ。ブラウザだけで動きます。">
+  <meta name="theme-color" content="#EDF0F5" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#10141F" media="(prefers-color-scheme: dark)">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%233346B0' opacity='.18'/%3E%3Ccircle cx='32' cy='32' r='20' fill='%233346B0'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="page">
+    <header class="top">
+      <div class="brand">
+        <h1>Kodama</h1>
+        <p class="tagline">話した英語が、すぐ返ってくる</p>
+      </div>
+      <div class="mode" role="radiogroup" aria-label="モード">
+        <button type="button" role="radio" data-mode="auto" aria-checked="true">自動</button>
+        <button type="button" role="radio" data-mode="manual" aria-checked="false">手動</button>
+      </div>
+    </header>
+
+    <main>
+      <section class="stage" aria-label="録音と再生">
+        <button type="button" id="orb" class="orb" data-state="off" aria-describedby="status sub">
+          <span class="halo" aria-hidden="true"></span>
+          <span class="echo" aria-hidden="true"></span>
+          <span class="echo" aria-hidden="true"></span>
+          <span class="echo" aria-hidden="true"></span>
+          <span class="core" aria-hidden="true">
+            <svg class="i i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg>
+            <svg class="i i-stop" viewBox="0 0 24 24"><rect x="6.5" y="6.5" width="11" height="11" rx="2" class="fill"/></svg>
+            <svg class="i i-wave" viewBox="0 0 24 24"><path d="M4 10v4M8 7v10M12 4v16M16 7v10M20 10v4"/></svg>
+            <svg class="i i-play" viewBox="0 0 24 24"><path d="M8 5.5v13l10.5-6.5z" class="fill"/></svg>
+          </span>
+          <span class="sr-only" id="orbLabel">はじめる</span>
+        </button>
+        <p id="status" class="status" aria-live="polite">タップしてはじめる</p>
+        <p id="sub" class="sub">マイクを使います。イヤホンがあると、より聞き取りやすくなります。</p>
+        <p id="error" class="error" role="alert" hidden></p>
+      </section>
+
+      <section class="last" id="last" aria-label="さっきの発音" hidden>
+        <p class="said" id="said"></p>
+        <div class="actions">
+          <button type="button" class="btn" id="replayBtn">
+            <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.4-5.7M4 4v4.5h4.5"/></svg>
+            もう一度聞く
+          </button>
+          <button type="button" class="btn" id="modelBtn">
+            <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5zM15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/></svg>
+            お手本を聞く
+          </button>
+          <button type="button" class="btn" id="saveBtn">
+            <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h10v16l-5-3.5L7 20z"/></svg>
+            <span>保存</span>
+          </button>
+        </div>
+      </section>
+
+      <details class="settings" id="settings">
+        <summary>設定</summary>
+        <div class="settings-body">
+          <div class="field">
+            <label for="sens">声への反応</label>
+            <div class="control">
+              <input type="range" id="sens" min="1" max="10" step="1">
+              <div class="scale" aria-hidden="true"><span>にぶい</span><span>敏感</span></div>
+              <div class="meter" aria-hidden="true"><span class="meter-fill" id="meterFill"></span><span class="meter-th" id="meterTh"></span></div>
+              <p class="help">話していないのに録音が始まるなら、にぶい方へ。声に反応しないなら、敏感な方へ。バーが縦線を超えると録音が始まります。</p>
+            </div>
+          </div>
+          <div class="field">
+            <label for="silence">話し終わりの待ち時間</label>
+            <div class="control">
+              <input type="range" id="silence" min="0.4" max="2" step="0.1">
+              <output id="silenceOut" for="silence"></output>
+              <p class="help">黙ってからこの時間がたつと、自動で再生します。</p>
+            </div>
+          </div>
+          <div class="field">
+            <label for="rate">再生スピード</label>
+            <div class="control">
+              <select id="rate">
+                <option value="0.7">0.7 倍（ゆっくり）</option>
+                <option value="0.85">0.85 倍</option>
+                <option value="1">1 倍</option>
+                <option value="1.15">1.15 倍</option>
+              </select>
+            </div>
+          </div>
+          <div class="field">
+            <label for="repeat">自分の声を聞く回数</label>
+            <div class="control">
+              <select id="repeat">
+                <option value="1">1 回</option>
+                <option value="2">2 回</option>
+              </select>
+            </div>
+          </div>
+          <div class="field check">
+            <input type="checkbox" id="transcribe">
+            <label for="transcribe">話した英語を文字にする</label>
+            <p class="help" id="transcribeHelp">聞き取られた英文が表示されます。意図と違う文になったら、発音を見直すきっかけになります。</p>
+          </div>
+          <div class="field check">
+            <input type="checkbox" id="model">
+            <label for="model">自分の声のあとに、お手本の発音も流す</label>
+            <p class="help">文字になった英文を、ブラウザの読み上げ音声で読みます。</p>
+          </div>
+          <div class="field">
+            <label for="lang">英語の種類</label>
+            <div class="control">
+              <select id="lang">
+                <option value="en-US">アメリカ英語</option>
+                <option value="en-GB">イギリス英語</option>
+                <option value="en-AU">オーストラリア英語</option>
+                <option value="en-IN">インド英語</option>
+              </select>
+            </div>
+          </div>
+          <div class="field">
+            <label for="voice">お手本の声</label>
+            <div class="control">
+              <select id="voice"><option value="">おまかせ</option></select>
+            </div>
+          </div>
+        </div>
+      </details>
+
+      <section class="list" aria-labelledby="sessionTitle">
+        <h2 id="sessionTitle">今回の練習</h2>
+        <p class="note">ページを閉じると消えます。残したい発音だけ「保存」してください。</p>
+        <ol id="sessionList" class="rows"></ol>
+        <p class="empty" id="sessionEmpty">話すと、ここに最近の発音が並びます。</p>
+      </section>
+
+      <section class="list" aria-labelledby="savedTitle">
+        <h2 id="savedTitle">保存した発音</h2>
+        <ol id="savedList" class="rows"></ol>
+        <p class="empty" id="savedEmpty">まだありません。残したい発音の「保存」を押すと、この端末のブラウザに残ります。</p>
+      </section>
+    </main>
+
+    <footer class="foot">
+      <p>録音はこの端末の中だけで扱い、どこにも送りません。「話した英語を文字にする」がオンのときは、文字にするために音声がブラウザの音声認識サービス（Chrome なら Google）に送られます。</p>
+      <p>キーボード: Space で録音・停止、R でもう一度聞く、M でお手本、S で保存</p>
+    </footer>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <noscript><p class="noscript">このアプリを使うには JavaScript をオンにしてください。</p></noscript>
+  <script src="app.js" defer></script>
+</body>
+</html>
