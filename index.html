@@ -7,7 +7,10 @@
   <meta name="description" content="英語を話すと、すぐに自分の声で聞き返せる発音練習アプリ。ブラウザだけで動きます。">
   <meta name="theme-color" content="#EDF0F5" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#10141F" media="(prefers-color-scheme: dark)">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%233346B0' opacity='.18'/%3E%3Ccircle cx='32' cy='32' r='20' fill='%233346B0'/%3E%3C/svg%3E">
+  <meta name="apple-mobile-web-app-title" content="Kodama">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
@@ -21,10 +24,14 @@
         <p class="tagline">話した英語が、すぐ返ってくる</p>
       </div>
       <div class="mode" role="radiogroup" aria-label="モード">
-        <button type="button" role="radio" data-mode="auto" aria-checked="true">自動</button>
-        <button type="button" role="radio" data-mode="manual" aria-checked="false">手動</button>
+        <button type="button" role="radio" data-mode="auto" aria-checked="true" title="話し終わりを自動で判定して再生します">自動</button>
+        <button type="button" role="radio" data-mode="manual" aria-checked="false" title="タップで録音を始めて、もう一度タップで止めます">手動</button>
       </div>
     </header>
+
+    <p class="notice" id="inAppNotice" hidden>
+      LINE などのアプリ内ブラウザでは、マイクが使えないことがあります。画面のメニューから「Safari で開く」または「ブラウザで開く」を選んでください。
+    </p>
 
     <main>
       <section class="stage" aria-label="録音と再生">
@@ -33,6 +40,9 @@
           <span class="echo" aria-hidden="true"></span>
           <span class="echo" aria-hidden="true"></span>
           <span class="echo" aria-hidden="true"></span>
+          <svg class="ring" viewBox="0 0 100 100" aria-hidden="true">
+            <circle cx="50" cy="50" r="41.5" pathLength="100" id="ringArc"/>
+          </svg>
           <span class="core" aria-hidden="true">
             <svg class="i i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg>
             <svg class="i i-stop" viewBox="0 0 24 24"><rect x="6.5" y="6.5" width="11" height="11" rx="2" class="fill"/></svg>
@@ -43,12 +53,33 @@
         </button>
         <p id="status" class="status" aria-live="polite">タップしてはじめる</p>
         <p id="sub" class="sub">マイクを使います。イヤホンがあると、より聞き取りやすくなります。</p>
+        <ol class="steps" id="steps" aria-label="使い方">
+          <li>英語で話す</li>
+          <li>黙ると、自分の声がすぐ流れる</li>
+          <li>もう一度話して、聞き比べる</li>
+        </ol>
         <p id="error" class="error" role="alert" hidden></p>
       </section>
 
-      <section class="last" id="last" aria-label="さっきの発音" hidden>
-        <p class="said" id="said"></p>
-        <div class="actions">
+      <section class="practice" aria-label="練習">
+        <button type="button" class="add-target" id="addTarget">
+          <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+          練習する英文を選ぶ<span class="add-target-note">（自由に話してもOK）</span>
+        </button>
+
+        <div class="target" id="targetBox" hidden>
+          <div class="target-head">
+            <span class="target-label">練習する英文</span>
+            <button type="button" class="link" id="changeTarget">変える</button>
+            <button type="button" class="link" id="clearTarget">やめる</button>
+          </div>
+          <p class="target-text" id="targetText" lang="en"></p>
+        </div>
+
+        <p class="said" id="said" hidden></p>
+        <p class="score" id="score" hidden></p>
+
+        <div class="actions" id="actions" hidden>
           <button type="button" class="btn" id="replayBtn">
             <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.4-5.7M4 4v4.5h4.5"/></svg>
             もう一度聞く
@@ -62,10 +93,16 @@
             <span>保存</span>
           </button>
         </div>
+
+        <div class="quick" role="group" aria-label="再生のしかた">
+          <button type="button" class="chip" id="rateChip">速さ 1倍</button>
+          <button type="button" class="chip" id="repeatChip" aria-pressed="false">2回聞く</button>
+          <button type="button" class="chip" id="modelChip" aria-pressed="false">お手本も流す</button>
+        </div>
       </section>
 
       <details class="settings" id="settings">
-        <summary>設定</summary>
+        <summary>マイクと文字起こしの設定</summary>
         <div class="settings-body">
           <div class="field">
             <label for="sens">声への反応</label>
@@ -73,7 +110,7 @@
               <input type="range" id="sens" min="1" max="10" step="1">
               <div class="scale" aria-hidden="true"><span>にぶい</span><span>敏感</span></div>
               <div class="meter" aria-hidden="true"><span class="meter-fill" id="meterFill"></span><span class="meter-th" id="meterTh"></span></div>
-              <p class="help">話していないのに録音が始まるなら、にぶい方へ。声に反応しないなら、敏感な方へ。バーが縦線を超えると録音が始まります。</p>
+              <p class="help">バーが赤い線を超えると録音が始まります。話していないのに録音が始まるなら、にぶい方へ。声に反応しないなら、敏感な方へ。</p>
             </div>
           </div>
           <div class="field">
@@ -81,38 +118,13 @@
             <div class="control">
               <input type="range" id="silence" min="0.4" max="2" step="0.1">
               <output id="silenceOut" for="silence"></output>
-              <p class="help">黙ってからこの時間がたつと、自動で再生します。</p>
-            </div>
-          </div>
-          <div class="field">
-            <label for="rate">再生スピード</label>
-            <div class="control">
-              <select id="rate">
-                <option value="0.7">0.7 倍（ゆっくり）</option>
-                <option value="0.85">0.85 倍</option>
-                <option value="1">1 倍</option>
-                <option value="1.15">1.15 倍</option>
-              </select>
-            </div>
-          </div>
-          <div class="field">
-            <label for="repeat">自分の声を聞く回数</label>
-            <div class="control">
-              <select id="repeat">
-                <option value="1">1 回</option>
-                <option value="2">2 回</option>
-              </select>
+              <p class="help">黙ってからこの時間がたつと再生します。文の途中で考えて止まることが多いなら、長めに。</p>
             </div>
           </div>
           <div class="field check">
             <input type="checkbox" id="transcribe">
             <label for="transcribe">話した英語を文字にする</label>
-            <p class="help" id="transcribeHelp">聞き取られた英文が表示されます。意図と違う文になったら、発音を見直すきっかけになります。</p>
-          </div>
-          <div class="field check">
-            <input type="checkbox" id="model">
-            <label for="model">自分の声のあとに、お手本の発音も流す</label>
-            <p class="help">文字になった英文を、ブラウザの読み上げ音声で読みます。</p>
+            <p class="help" id="transcribeHelp"></p>
           </div>
           <div class="field">
             <label for="lang">英語の種類</label>
@@ -136,9 +148,9 @@
 
       <section class="list" aria-labelledby="sessionTitle">
         <h2 id="sessionTitle">今回の練習</h2>
-        <p class="note">ページを閉じると消えます。残したい発音だけ「保存」してください。</p>
+        <p class="note">ページを閉じると消えます。残したい発音だけ保存してください。</p>
         <ol id="sessionList" class="rows"></ol>
-        <p class="empty" id="sessionEmpty">話すと、ここに最近の発音が並びます。</p>
+        <p class="empty" id="sessionEmpty">話すと、ここに最近の発音が並びます。前の発音と聞き比べるときに使えます。</p>
       </section>
 
       <section class="list" aria-labelledby="savedTitle">
@@ -150,11 +162,34 @@
 
     <footer class="foot">
       <p>録音はこの端末の中だけで扱い、どこにも送りません。「話した英語を文字にする」がオンのときは、文字にするために音声がブラウザの音声認識サービス（Chrome なら Google）に送られます。</p>
-      <p>キーボード: Space で録音・停止、R でもう一度聞く、M でお手本、S で保存</p>
+      <p class="keys">キーボード: Space で録音・停止、R でもう一度聞く、M でお手本、S で保存</p>
     </footer>
   </div>
 
-  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <dialog class="sheet" id="targetDialog" aria-labelledby="targetDialogTitle">
+    <form method="dialog" class="sheet-inner" id="targetForm">
+      <div class="sheet-head">
+        <h2 id="targetDialogTitle">練習する英文</h2>
+        <button type="button" class="icon-btn" id="targetClose" aria-label="閉じる">
+          <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+        </button>
+      </div>
+      <p class="sheet-lead">言いたい英文を入れるか、下の例から選んでください。話したあと、どの単語が伝わったかを確認できます。</p>
+      <label class="sr-only" for="targetInput">英文</label>
+      <textarea id="targetInput" rows="2" lang="en" autocomplete="off" autocapitalize="sentences" placeholder="例: Could you say that again?"></textarea>
+      <button type="submit" class="primary" id="targetSubmit">この英文で練習する</button>
+      <div id="recentWrap" hidden>
+        <h3>最近使った英文</h3>
+        <ul class="examples" id="recentList"></ul>
+      </div>
+      <div id="exampleGroups"></div>
+    </form>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite">
+    <span class="toast-msg" id="toastMsg"></span>
+    <button type="button" class="toast-action" id="toastAction" hidden></button>
+  </div>
 
   <noscript><p class="noscript">このアプリを使うには JavaScript をオンにしてください。</p></noscript>
   <script src="app.js" defer></script>
