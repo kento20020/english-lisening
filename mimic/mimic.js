@@ -47,6 +47,9 @@ const $ = id => document.getElementById(id);
 const fmt = s => { if(!isFinite(s)) s=0; const m=Math.floor(s/60); return m+':'+(s%60).toFixed(1).padStart(4,'0'); };
 const esc = s => String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const uid = () => Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+// アプリ版（iOS）が使う差し込み口。window.MimicHooks が無ければ何もしない
+const hooks = () => window.MimicHooks || {};
+async function mayCreateProject(){ const h=hooks().beforeCreateProject; if(!h) return true; try{ return !!(await h()); }catch(e){ return true; } }
 function toast(t){ const el=$('toast'); el.textContent=t; el.classList.add('show'); clearTimeout(toast._t); toast._t=setTimeout(()=>el.classList.remove('show'),1800); }
 
 /* ---------- モーダル ---------- */
@@ -83,11 +86,22 @@ function openDB(){
           };
         }
       };
-      r.onsuccess=()=>{db=r.result;res()}; r.onerror=()=>res(); r.onblocked=()=>res();
+      r.onsuccess=()=>{db=r.result; db.onclose=()=>{ dbLost=true; db=null; }; res()}; r.onerror=()=>res(); r.onblocked=()=>res();
     }catch(e){res()}
   });
 }
-function req(storeName,mode,fn){
+// iOS ではアプリを裏に回したあとなどに、データベースとの接続が切れることがある。そのときは1回だけつなぎ直す
+let dbLost=false;
+async function req(storeName,mode,fn){
+  if(!db && dbLost){ dbLost=false; await openDB(); }
+  try{ return await req1(storeName,mode,fn); }
+  catch(e){
+    if(!(e && e.name==='InvalidStateError') && !dbLost) throw e;
+    dbLost=false; try{ db&&db.close(); }catch(_){} db=null; await openDB();
+    return req1(storeName,mode,fn);
+  }
+}
+function req1(storeName,mode,fn){
   return new Promise((ok,ng)=>{
     if(!db) return ng(new Error('no db'));
     try{ const q=fn(db.transaction(storeName,mode).objectStore(storeName)); q.onsuccess=()=>ok(q.result); q.onerror=()=>ng(q.error); }catch(e){ ng(e); }
@@ -152,7 +166,7 @@ function renderProject(){
 }
 $('projName').addEventListener('change',()=>{ cur.name=$('projName').value.trim()||'無題のプロジェクト'; $('projName').value=cur.name; touch(); });
 $('projName').addEventListener('keydown',e=>{ if(e.key==='Enter') e.target.blur(); });
-$('projNewBtn').onclick=async()=>{ await openProject(blankProject()); closeProjIfOverlay(); toast('新しいプロジェクトを作りました'); $('projName').focus(); $('projName').select(); };
+$('projNewBtn').onclick=async()=>{ if(!await mayCreateProject()) return; await openProject(blankProject()); closeProjIfOverlay(); toast('新しいプロジェクトを作りました'); $('projName').focus(); $('projName').select(); };
 $('projListBtn').onclick=()=>{
   const p=$('projPanel'); const open=p.style.display!=='block';
   p.style.display=open?'block':'none'; $('projListBtn').setAttribute('aria-expanded',String(open)); document.body.classList.toggle('proj-open',open);
@@ -177,7 +191,7 @@ async function renderProjList(){
     const [bOpen,bExp,bDup,bDel]=li.querySelectorAll('button');
     bOpen.onclick=async()=>{ await openProject(await dbGet('projects',p.id)); closeProjIfOverlay(); toast('「'+p.name+'」を開きました'); };
     bExp.onclick=()=>exportProject(p);
-    bDup.onclick=async()=>{ const s=normalizeProject({...p}); const c={...s,id:undefined,name:p.name+' のコピー',created:Date.now(),updated:Date.now(),
+    bDup.onclick=async()=>{ if(!await mayCreateProject()) return; const s=normalizeProject({...p}); const c={...s,id:undefined,name:p.name+' のコピー',created:Date.now(),updated:Date.now(),
         tracks:s.tracks.map(t=>({...t,id:uid(),markers:t.markers.map(m=>({...m}))}))}; c.id=await dbPut('projects',c); renderProjList(); toast('複製しました'); };
     bDel.onclick=async()=>{
       const ok=await ask('「'+p.name+'」を削除しますか？','このプロジェクトの音源・印・保存した録音（'+n+'件）がすべて消えます。元に戻せません。',[['削除する',true,'danger'],['キャンセル',false]]);
@@ -203,11 +217,14 @@ async function exportProject(p){
       tracks:await Promise.all(s.tracks.map(async t=>({name:t.name,type:t.type,markers:t.markers,data:await blobToB64(t.blob)})))},
     recordings:await Promise.all(recs.map(async r=>({name:r.name,type:r.type,created:r.created,
       trackIndex:s.tracks.findIndex(t=>t.id===r.trackId),data:await blobToB64(r.blob)})))};
-  const url=URL.createObjectURL(new Blob([JSON.stringify(out)],{type:'application/json'}));
-  const a=document.createElement('a'); a.href=url; a.download=(p.name||'project').replace(/[\\/:*?"<>|]/g,'_')+'.mimic.json';
+  const blob=new Blob([JSON.stringify(out)],{type:'application/json'}), fname=(p.name||'project').replace(/[\\/:*?"<>|]/g,'_')+'.mimic.json';
+  if(hooks().saveFile){ await hooks().saveFile(blob,fname); return; }
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a'); a.href=url; a.download=fname;
   document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),5000);
 }
 async function importProject(file){
+  if(!await mayCreateProject()) return;
   try{
     const j=JSON.parse(await file.text());
     if(j.format!=='speakback-project') throw 0;
@@ -317,6 +334,7 @@ async function renderSaved(){
     const nm=li.querySelector('.nm'); nm.value=r.name;
     const a=li.querySelector('a'); a.href=url;
     const setDl=()=>a.download=(nm.value||'recording').replace(/[\\/:*?"<>|]/g,'_')+'.'+ext; setDl();
+    a.onclick=e=>{ const h=hooks().saveFile; if(h){ e.preventDefault(); h(r.blob,a.download); } };
     const au=li.querySelector('audio'); au.preservesPitch=true; au.onplay=()=>{ au.playbackRate=+$('mineRate').value; };
     nm.onchange=()=>{ r.name=nm.value; setDl(); dbPut('recs',r).catch(()=>{}); };
     li.querySelector('.x').onclick=async()=>{ await dbDel('recs',r.id); renderSaved(); };
@@ -419,6 +437,7 @@ async function handleAudioFiles(files,confirm){
       ['キャンセル',null]]);
     if(!choice) return;
     if(choice==='new'){
+      if(!await mayCreateProject()) return;
       const p=blankProject(); p.name=baseName(files[0].name); p.tracks=files.map(mk); p.rate=cur.rate; p.vol=cur.vol;
       await openProject(p); touch(); toast('新しいプロジェクトを作りました'); return;
     }

@@ -1,0 +1,22 @@
+{
+  "name": "mimic-ios",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Mimic の iOS アプリ（B Pocket のデザインを Capacitor で包んだもの）",
+  "scripts": {
+    "build": "node scripts/build-www.mjs",
+    "sync": "npm run build && npx cap sync ios"
+  },
+  "dependencies": {
+    "@capacitor/app": "8.1.2",
+    "@capacitor/core": "8.6.2",
+    "@capacitor/filesystem": "8.1.5",
+    "@capacitor/ios": "8.6.2",
+    "@capacitor/share": "8.0.3",
+    "@capgo/native-purchases": "8.9.17"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.6.2",
+    "esbuild": "0.28.2"
+  }
+}

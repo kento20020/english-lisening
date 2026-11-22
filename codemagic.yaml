@@ -1,0 +1,49 @@
+# Codemagic（クラウドの Mac）で Mimic の iOS アプリを作り、TestFlight に送る設定。
+# Mac がなくても、ここから App Store に出せます。
+# 初めて使う前に、app/README.md の手順で Codemagic と App Store Connect の準備をしてください。
+workflows:
+  ios-testflight:
+    name: Mimic iOS（TestFlight へ）
+    instance_type: mac_mini_m2
+    max_build_duration: 45
+    integrations:
+      # Codemagic に登録した App Store Connect API キーの名前（違う名前で登録したら書き換える）
+      app_store_connect: Mimic
+    environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: io.github.kento20020.mimic
+      vars:
+        # App Store Connect でアプリを作ると出てくる「Apple ID」（10桁くらいの数字）に書き換える
+        APP_STORE_APPLE_ID: "0000000000"
+        XCODE_PROJECT: app/ios/App/App.xcodeproj
+        XCODE_SCHEME: App
+      node: 22
+      xcode: latest
+    scripts:
+      - name: 部品を入れる
+        script: |
+          cd app
+          npm ci
+      - name: 画面（B Pocket）を作って iOS のプロジェクトに写す
+        script: |
+          cd app
+          npm run build
+          npx cap sync ios
+      - name: 署名の設定
+        script: xcode-project use-profiles --project "$XCODE_PROJECT"
+      - name: ビルド番号を上げる（TestFlight の最新 + 1）
+        script: |
+          LATEST=$(app-store-connect get-latest-testflight-build-number "$APP_STORE_APPLE_ID" 2>/dev/null || echo 0)
+          NEXT=$((LATEST + 1))
+          sed -i '' "s/CURRENT_PROJECT_VERSION = [0-9]*;/CURRENT_PROJECT_VERSION = $NEXT;/g" "$XCODE_PROJECT/project.pbxproj"
+          echo "ビルド番号: $NEXT"
+      - name: アプリを作る
+        script: xcode-project build-ipa --project "$XCODE_PROJECT" --scheme "$XCODE_SCHEME"
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true

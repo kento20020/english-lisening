@@ -1,0 +1,112 @@
+/* Mimic iOS アプリだけの見た目（B Pocket の pocket.css に足す分） */
+
+/* 試作用のバーが無いので、上のバーを iPhone のステータスバーの下から始める */
+.appbar { padding-top: calc(env(safe-area-inset-top) + 6px); }
+
+/* アプリらしく、長押しで文字が選ばれたりメニューが出たりしないように（入力欄は除く） */
+body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+input, textarea, select { -webkit-user-select: text; user-select: text; }
+
+/* 日本語を文節で折り返す */
+.pw-lead, .pw-fine, .pw-list li, .pw-msg, .plan-sub { word-break: auto-phrase; }
+
+/* ---------- いまのプラン（プロジェクト一覧のシートの上） ---------- */
+.plan {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 14px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+.plan.is-premium { box-shadow: var(--shadow), inset 0 0 0 2px var(--mark); }
+.plan-text { flex: 1; min-width: 0; }
+.plan-name { font-weight: 800; }
+.plan-sub { font-size: 12px; color: var(--muted); line-height: 1.5; }
+.plan-up { background: var(--model); color: var(--on-model); }
+.plan-restore {
+  margin-top: 2px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--model);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* ---------- プレミアムの案内（下から出るシート） ---------- */
+.pw-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  background: rgba(10, 14, 28, .45);
+}
+.paywall {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 71;
+  max-width: 560px;
+  max-height: 92vh;
+  margin: 0 auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 8px 20px calc(16px + env(safe-area-inset-bottom));
+  border-radius: 24px 24px 0 0;
+  background: var(--bg);
+  box-shadow: 0 -10px 40px rgba(0, 0, 0, .2);
+  text-align: center;
+}
+body.pw-open .paywall { animation: sheet-up .24s cubic-bezier(.2, .8, .2, 1); }
+.pw-logo { display: block; margin: 10px auto 6px; }
+.paywall h2 { margin: 0; font-size: 22px; font-weight: 800; }
+.pw-lead { margin: 6px 0 14px; font-size: 14px; color: var(--muted); }
+.pw-list {
+  display: grid;
+  gap: 10px;
+  margin: 0 0 16px;
+  padding: 16px;
+  list-style: none;
+  border-radius: 18px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  text-align: left;
+}
+.pw-list li { display: flex; align-items: flex-start; gap: 10px; font-weight: 700; line-height: 1.5; }
+.pw-list li::before {
+  content: "";
+  width: 22px;
+  height: 22px;
+  flex: none;
+  border-radius: 50%;
+  background: #34C759 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5.5 12.5l4 4L18.5 7.5'/%3E%3C/svg%3E") center / 13px no-repeat;
+}
+.pw-buy {
+  width: 100%;
+  min-height: 56px;
+  border: 0;
+  border-radius: 16px;
+  background: var(--model);
+  color: var(--on-model);
+  font-size: 17px;
+  font-weight: 800;
+  box-shadow: 0 8px 22px color-mix(in srgb, var(--model) 35%, transparent);
+}
+.pw-buy:disabled { opacity: .55; box-shadow: none; }
+.pw-msg { min-height: 1.5em; margin: 8px 0 0; font-size: 13px; color: var(--rec); }
+.pw-restore, .pw-later {
+  min-height: 44px;
+  padding: 0 12px;
+  border: 0;
+  background: none;
+  font-weight: 700;
+}
+.pw-restore { color: var(--model); }
+.pw-restore:disabled { opacity: .5; }
+.pw-later { display: block; margin: 0 auto; color: var(--muted); }
+.pw-fine { margin: 4px 0 6px; font-size: 11px; line-height: 1.6; color: var(--muted); text-align: left; }
+.pw-links { display: flex; justify-content: center; gap: 18px; margin: 4px 0; font-size: 12px; }
+.pw-links a { color: var(--muted); }

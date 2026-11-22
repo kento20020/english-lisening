@@ -73,6 +73,14 @@
 - 仕組み（`mimic/mimic.js`）は Speak Back からそのままコピーしたものです。新しい機能は Speak Back に追加し、決まった案に取り込みます。
 - データは Speak Back とは別に保存します。Speak Back で「書き出し」したファイルを読み込めます。
 
+## Mimic の iOS アプリ
+
+`app/` は、B Pocket のデザインを iPhone アプリにしたものです。Mac がなくても、Codemagic（クラウドの Mac）でビルドして App Store に出せます。手順は [`app/README.md`](app/README.md) にまとめています。
+
+- 課金：ログインなしで Apple ID の月額課金を使う。無料はプロジェクト1つ、プレミアムは無制限
+- 解約しても、作ったプロジェクトは消えない
+- オフラインでも練習できる
+
 ## 対応ブラウザと注意点
 
 | | 録音・再生 | 文字起こし | お手本の読み上げ |
@@ -127,3 +135,7 @@ python3 -m http.server 8000
 | `english-practice2.html` | Speak Back（複数の音声ファイルをプロジェクトにまとめて練習する画面） |
 | `manifest.webmanifest`, `icons/` | ホーム画面に追加したときの名前とアイコン |
 | `mimic/` | Mimic のデザイン案（3案と、見比べるページ） |
+| `mimic/tools/sync_from_speakback.py` | Speak Back の仕組みを `mimic/mimic.js` に写すスクリプト |
+| `app/` | Mimic の iOS アプリ（Capacitor） |
+| `codemagic.yaml` | Codemagic で iOS アプリをビルドして TestFlight に送る設定 |
+| `privacy.html`, `support.html` | アプリのプライバシーポリシーとサポートのページ |

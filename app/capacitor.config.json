@@ -1,0 +1,13 @@
+{
+  "appId": "io.github.kento20020.mimic",
+  "appName": "Mimic",
+  "webDir": "www",
+  "ios": {
+    "contentInset": "never"
+  },
+  "plugins": {
+    "NativePurchases": {
+      "autoFinishTransactions": true
+    }
+  }
+}
