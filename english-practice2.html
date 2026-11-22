@@ -83,6 +83,7 @@
   .x:disabled{opacity:.25}
   #waveWrap{position:relative;height:130px;background:#faf8f3;border:1px solid var(--line);border-radius:10px;overflow:hidden;cursor:pointer;user-select:none}
   #wave{width:100%;height:100%;display:block}
+  #waveBusy{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:rgba(250,248,243,.85);color:var(--muted);font-size:13px}
   .time-row{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin:6px 2px 12px;font-variant-numeric:tabular-nums;gap:8px}
   .ctrl{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
   .panel{display:flex;gap:18px;flex-wrap:wrap;align-items:center;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#fff;margin-bottom:12px}
@@ -181,7 +182,7 @@
         <button id="addTrackBtn" class="small">＋ 音源を追加</button>
       </div>
       <ul id="trackList"></ul>
-      <div id="waveWrap"><canvas id="wave"></canvas></div>
+      <div id="waveWrap"><canvas id="wave"></canvas><div id="waveBusy">音源をつなげています…</div></div>
       <div class="time-row"><span id="curT">0:00.0</span><span>クリックで移動・ダブルクリックで印・印の丸をクリックでそこから再生</span><span id="durT">0:00.0</span></div>
 
       <div class="ctrl">
@@ -301,8 +302,7 @@ function normalizeProject(p){
   p.curTrack=Math.max(0,Math.min(p.tracks.length-1,p.curTrack|0));
   return p;
 }
-const trk   = () => cur.tracks[cur.curTrack]||null;
-const marks = () => { const t=trk(); return t?t.markers:[]; };
+const trk   = () => (segs[activeSeg]||{}).tr||null; // 今聞いている位置の音源
 const baseName = n => String(n).replace(/\.[^.]+$/,'');
 let cur=blankProject();
 let saveTimer=null, dirty=false;
@@ -326,16 +326,16 @@ async function openProject(p){
   model.pause(); mine.pause();
   cur=normalizeProject(p);
   if(cur.id!=null) try{ localStorage.setItem('speakback-last',cur.id); }catch(e){}
-  selMark=marks().length?0:-1;
+  selMark=-1; segs=[]; peaks=null; activeSeg=-1; buildId++;
   renderProject();
 }
 function renderProject(){
   $('projName').value=cur.name;
   $('saveState').textContent=cur.id!=null?'✓ 保存済み':'';
   setRate(cur.rate||1,false); setVol(cur.vol??100,false);
-  if(trk()){ setModelAudio(trk().blob,trk().name); }
+  if(cur.tracks.length){ buildTimeline(); }
   else{
-    model.pause(); model.removeAttribute('src'); model.load(); modelReady=false; peaks=null;
+    model.pause(); model.removeAttribute('src'); model.load(); modelReady=false; peaks=null; segs=[]; activeSeg=-1; buildId++;
     $('modelArea').style.display='none'; $('drop').style.display='block';
   }
   renderTracks(); renderMarks(); renderSaved();
@@ -481,8 +481,8 @@ async function saveCurrent(){
   if(!db){ toast('このブラウザでは保存できません'); return; }
   if(cur.id==null) await saveProject();
   const d=new Date();
-  const ms=marks();
-  const markName = selMark>=0&&ms[selMark]&&ms[selMark].name ? ms[selMark].name+' ' : '';
+  const g=gmarks()[selMark];
+  const markName = g&&g.name ? g.name+' ' : '';
   await dbPut('recs',{name:markName+d.toLocaleString('ja-JP',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit'}),
     blob:lastBlob,type:lastBlob.type,created:d.getTime(),projectId:cur.id,trackId:trk()?trk().id:undefined});
   $('saveBtn').disabled=true; toast('「'+cur.name+'」に保存しました'); renderSaved();
@@ -498,9 +498,9 @@ async function renderSaved(){
     const li=document.createElement('li');
     const url=URL.createObjectURL(r.blob);
     const ext=(r.type||'').includes('mp4')?'m4a':(r.type||'').includes('ogg')?'ogg':'webm';
-    const tr=r.projectId===cur.id&&cur.tracks.length>1?cur.tracks.find(t=>t.id===r.trackId):null;
+    const ti=r.projectId===cur.id&&cur.tracks.length>1?cur.tracks.findIndex(t=>t.id===r.trackId):-1;
     li.innerHTML=(showAll?`<span class="ptag">${esc(projs[r.projectId]||'プロジェクトなし')}</span>`:'')+
-      (tr?`<span class="ptag">🎧 ${esc(baseName(tr.name))}</span>`:'')+
+      (ti>=0?`<span class="ptag" style="background:${tint(colorOf(ti)[0],.16)}">🎧 ${esc(baseName(cur.tracks[ti].name))}</span>`:'')+
       `<input class="nm"><audio controls src="${url}"></audio><a download title="ファイルとしてダウンロード" style="text-decoration:none">⬇</a><button class="x" title="削除">✕</button>`;
     const nm=li.querySelector('.nm'); nm.value=r.name;
     const a=li.querySelector('a'); a.href=url;
@@ -513,30 +513,72 @@ async function renderSaved(){
 }
 $('showAllRecs').onchange=renderSaved;
 
-/* ---------- お手本 ---------- */
+/* ---------- お手本（プロジェクト内の音源を順番に1本につなげて扱う） ---------- */
 const model=new Audio(); model.preservesPitch=true;
-let modelReady=false, peaks=null, selMark=-1;
+let modelReady=false, peaks=null, peakSeg=null, selMark=-1;
+let segs=[], activeSeg=-1, buildId=0;   // segs[k] = {tr, start, dur, ok}：つなげた中での各音源の位置（秒）
+const decoded=new Map();                // 音源id → {data: モノラルPCM, sr}
 const canvas=$('wave'), ctx2=canvas.getContext('2d');
+const PAL=[['#2f6f5e','#b9c7c1'],['#3b5f99','#bcc6da'],['#8a4f7d','#d8c3d4'],['#9a6a1f','#dfcdab'],['#4d7a2c','#c6d5b7'],['#a14a3c','#e0beb7']];
+const colorOf = i => PAL[((i%PAL.length)+PAL.length)%PAL.length];
+const tint = (hex,a) => 'rgba('+[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16)).join(',')+','+a+')';
+const mmss = s => { s=Math.round(s||0); return Math.floor(s/60)+':'+String(s%60).padStart(2,'0'); };
+const totalDur = () => segs.length ? segs[segs.length-1].start+segs[segs.length-1].dur : 0;
 
-function setModelAudio(blob,name){
-  model.pause();
+async function decodeTrack(t){
+  if(decoded.has(t.id)) return decoded.get(t.id);
+  let r={data:null,sr:0};
+  try{
+    const buf=await getCtx().decodeAudioData(await t.blob.arrayBuffer());
+    const n=buf.length, C=buf.numberOfChannels, out=new Float32Array(n);
+    for(let c=0;c<C;c++){ const d=buf.getChannelData(c); for(let i=0;i<n;i++) out[i]+=d[i]/C; }
+    r={data:out,sr:buf.sampleRate};
+  }catch(e){}
+  decoded.set(t.id,r); return r;
+}
+function segAt(t){
+  for(let k=segs.length-1;k>=0;k--) if(segs[k].ok && t>=segs[k].start-1e-6) return k;
+  return segs.findIndex(s=>s.ok);
+}
+// 全音源をデコードして1本のWAVにつなげる。seekTrackId を渡すとその音源の頭へ、なければ今聞いている位置を保つ
+async function buildTimeline(seekTrackId){
+  const id=++buildId;
+  const keep = seekTrackId ? {id:seekTrackId,off:0}
+             : segs[activeSeg] ? {id:segs[activeSeg].tr.id, off:model.currentTime-segs[activeSeg].start} : null;
+  model.pause(); modelReady=false;
+  $('modelArea').style.display='block'; $('drop').style.display='none'; $('waveBusy').style.display='flex';
+  const tracks=cur.tracks.slice(), dec=[];
+  for(const t of tracks) dec.push(await decodeTrack(t));
+  if(id!==buildId) return; // 途中で別の変更が入った
+  for(const k of [...decoded.keys()]) if(!cur.tracks.some(t=>t.id===k)) decoded.delete(k);
+  const sr=(dec.find(d=>d.data)||{sr:44100}).sr;
+  let total=0;
+  segs=tracks.map((t,i)=>{ const n=dec[i].data?dec[i].data.length:0; const s={tr:t,start:total/sr,dur:n/sr,ok:n>0}; total+=n; return s; });
+  activeSeg=-1; $('waveBusy').style.display='none';
+  if(!total){ peaks=null; renderTracks(); renderMarks(); toast('音源を読み込めませんでした'); return; }
+
+  const buf=new ArrayBuffer(44+total*2), v=new DataView(buf);
+  const w=(o,s)=>{ for(let i=0;i<s.length;i++) v.setUint8(o+i,s.charCodeAt(i)); };
+  w(0,'RIFF'); v.setUint32(4,36+total*2,true); w(8,'WAVE'); w(12,'fmt '); v.setUint32(16,16,true); v.setUint16(20,1,true); v.setUint16(22,1,true);
+  v.setUint32(24,sr,true); v.setUint32(28,sr*2,true); v.setUint16(32,2,true); v.setUint16(34,16,true); w(36,'data'); v.setUint32(40,total*2,true);
+  const pcm=new Int16Array(buf,44,total), N=1600, pk=new Float32Array(N), ps=new Uint16Array(N), scale=N/total;
+  let g=0;
+  dec.forEach((d,k)=>{ if(!d.data) return; const a=d.data;
+    for(let i=0;i<a.length;i++,g++){ let s=a[i]; if(s>1)s=1; else if(s<-1)s=-1; pcm[g]=s*32767;
+      const b=(g*scale)|0, av=s<0?-s:s; if(av>pk[b]) pk[b]=av; ps[b]=k; } });
+  let mx=0; for(const x of pk) if(x>mx) mx=x; mx=mx||1; for(let i=0;i<N;i++) pk[i]/=mx;
+  peaks=pk; peakSeg=ps;
+
   if(model.src && model.src.startsWith('blob:')) URL.revokeObjectURL(model.src);
-  model.src=URL.createObjectURL(blob);
+  model.src=URL.createObjectURL(new Blob([buf],{type:'audio/wav'}));
   model.defaultPlaybackRate=cur.rate||1; model.playbackRate=cur.rate||1;
-  $('modelArea').style.display='block'; $('drop').style.display='none';
-  $('curT').textContent=fmt(0);
-  modelReady=true; peaks=null; drawWave();
-  (async()=>{
-    try{
-      const buf=await getCtx().decodeAudioData(await blob.arrayBuffer());
-      const ch=buf.getChannelData(0), N=1200, step=Math.floor(ch.length/N)||1;
-      const pk=new Float32Array(N);
-      for(let i=0;i<N;i++){ let m=0; for(let j=i*step;j<(i+1)*step&&j<ch.length;j+=4){const v=Math.abs(ch[j]); if(v>m)m=v;} pk[i]=m; }
-      let mx=0; for(const v of pk) if(v>mx) mx=v; mx=mx||1; for(let i=0;i<N;i++) pk[i]/=mx;
-      peaks=pk;
-    }catch(e){ peaks=null; }
-    drawWave();
-  })();
+  const k=keep?segs.findIndex(s=>s.tr.id===keep.id&&s.ok):-1;
+  const startT=k>=0?segs[k].start+Math.max(0,Math.min(keep.off,segs[k].dur-0.05)):0;
+  model.addEventListener('loadedmetadata',()=>{ model.currentTime=startT; },{once:true});
+  modelReady=true;
+  const n=gmarks().length; if(selMark<0&&n) selMark=0; if(selMark>=n) selMark=n-1;
+  renderTracks(); renderMarks();
+  if(segs.some(s=>!s.ok)) toast('⚠ 読み込めなかった音源があります');
 }
 
 /* 音源の追加（複数可）。confirm=true のとき、既存プロジェクトへ追加するか新規にするかを聞く */
@@ -557,51 +599,46 @@ async function handleAudioFiles(files,confirm){
       await openProject(p); touch(); toast('新しいプロジェクトを作りました'); return;
     }
   }
-  if(!cur.tracks.length && cur.name==='無題のプロジェクト') cur.name=baseName(files[0].name);
-  const start=cur.tracks.length;
-  cur.tracks.push(...files.map(mk));
-  cur.curTrack=start; selMark=-1;
-  renderProject(); touch();
+  if(!cur.tracks.length && cur.name==='無題のプロジェクト'){ cur.name=baseName(files[0].name); $('projName').value=cur.name; }
+  const added=files.map(mk);
+  cur.tracks.push(...added);
+  renderTracks(); buildTimeline(added[0].id); touch();
   toast(what+'を追加しました（全 '+cur.tracks.length+' 音源）');
 }
-function selectTrack(i){
-  if(i<0||i>=cur.tracks.length||(i===cur.curTrack&&modelReady)) return false;
-  mine.pause();
-  cur.curTrack=i; selMark=marks().length?0:-1;
-  setModelAudio(trk().blob,trk().name); renderTracks(); renderMarks(); touch();
-  return true;
+function gotoTrack(i){ // その音源の頭へ移動
+  const s=segs[i]; if(!s||!s.ok||!modelReady) return false;
+  mine.pause(); model.currentTime=s.start; return true;
 }
 function moveTrack(i,d){
   const j=i+d; if(j<0||j>=cur.tracks.length) return;
-  const curId=trk().id;
   [cur.tracks[i],cur.tracks[j]]=[cur.tracks[j],cur.tracks[i]];
-  cur.curTrack=cur.tracks.findIndex(t=>t.id===curId);
-  renderTracks(); touch();
+  renderTracks(); buildTimeline(); touch();
 }
 async function removeTrack(i){
   const t=cur.tracks[i];
   const ok=await ask('「'+t.name+'」をプロジェクトから外しますか？','この音源と、つけた印（'+t.markers.length+' 個）が消えます。保存した録音は残ります。',[['外す',true,'danger'],['キャンセル',false]]);
   if(!ok) return;
-  const wasCur=i===cur.curTrack;
-  cur.tracks.splice(i,1);
-  if(i<cur.curTrack) cur.curTrack--;
-  cur.curTrack=Math.max(0,Math.min(cur.curTrack,cur.tracks.length-1));
-  if(wasCur){ selMark=marks().length?0:-1; renderProject(); } else renderTracks();
+  cur.tracks.splice(i,1); decoded.delete(t.id);
+  if(cur.tracks.length){ renderTracks(); buildTimeline(); } else { segs=[]; renderProject(); }
   touch(); toast('音源を外しました');
+}
+function trackMeta(i){
+  const t=cur.tracks[i], s=segs.find(x=>x.tr===t);
+  if(!s) return '読み込み中…';
+  return s.ok ? mmss(s.dur)+' ・ 印 '+t.markers.length : '⚠ 読み込めません';
 }
 function renderTracks(){
   const ul=$('trackList'); ul.innerHTML='';
-  $('trackCount').textContent='このプロジェクトの音源：'+cur.tracks.length+' 個';
+  const tot=totalDur(), n=cur.tracks.length;
+  $('trackCount').textContent='音源 '+n+' 個'+(n>1?'を順番につなげて再生':'')+(tot&&n>1?'（合計 '+mmss(tot)+'）':'');
   cur.tracks.forEach((t,i)=>{
-    const li=document.createElement('li'); if(i===cur.curTrack) li.className='active';
-    li.innerHTML=`<span class="tnum">${i+1}</span><input maxlength="80" title="名前を変更できます"><span class="tmeta">印 ${t.markers.length}</span>
-      <button class="x" title="上へ">↑</button><button class="x" title="下へ">↓</button><button class="x" title="この音源を外す">✕</button>`;
+    const li=document.createElement('li'); if(i===activeSeg) li.className='active';
+    li.innerHTML=`<span class="tnum" style="background:${colorOf(i)[0]}" title="クリックでこの音源の頭から">${i+1}</span><input maxlength="80" title="名前を変更できます"><span class="tmeta">${trackMeta(i)}</span>
+      <button class="x" title="前へ">↑</button><button class="x" title="後ろへ">↓</button><button class="x" title="この音源を外す">✕</button>`;
     const inp=li.querySelector('input'); inp.value=t.name;
     const [up,down,del]=li.querySelectorAll('button');
-    up.disabled=i===0; down.disabled=i===cur.tracks.length-1;
-    li.onclick=e=>{ if(e.target.tagName==='BUTTON') return;
-      const wasInp=e.target.tagName==='INPUT';
-      if(selectTrack(i) && wasInp){ const n=$('trackList').querySelectorAll('input')[i]; n.focus(); n.select(); } };
+    up.disabled=i===0; down.disabled=i===n-1;
+    li.onclick=e=>{ if(e.target.tagName==='BUTTON'||e.target.tagName==='INPUT') return; gotoTrack(i); };
     inp.onchange=()=>{ t.name=inp.value.trim()||t.name; inp.value=t.name; touch(); renderSaved(); };
     inp.onkeydown=e=>{ if(e.key==='Enter'||e.key==='Escape'){ e.preventDefault(); inp.blur(); } };
     up.onclick=()=>moveTrack(i,-1); down.onclick=()=>moveTrack(i,1); del.onclick=()=>removeTrack(i);
@@ -656,15 +693,26 @@ function drawWave(){
   if(!W) return;
   if(canvas.width!==Math.round(W*dpr)||canvas.height!==Math.round(H*dpr)){canvas.width=Math.round(W*dpr); canvas.height=Math.round(H*dpr);}
   ctx2.setTransform(dpr,0,0,dpr,0,0); ctx2.clearRect(0,0,W,H);
-  const dur=model.duration||0, pos=dur?model.currentTime/dur:0, top=24, h0=H-top;
+  const dur=modelReady?(model.duration||totalDur()):0, pos=dur?model.currentTime/dur:0, top=24, strip=5, h0=H-top-strip;
+  const multi=segs.length>1;
+  // 音源ごとに背景と下の帯を色分けして、どこからどこまでが1つのファイルか分かるようにする
+  if(dur && multi) segs.forEach((s,k)=>{ if(!s.ok) return;
+    const x0=s.start/dur*W, x1=(s.start+s.dur)/dur*W, c=colorOf(k)[0];
+    ctx2.fillStyle=tint(c,.07); ctx2.fillRect(x0,0,x1-x0,H);
+    ctx2.fillStyle=c; ctx2.fillRect(x0,H-strip,Math.max(1,x1-x0-2),strip); });
   const seg=currentSegment();
   if($('loopSeg').checked && seg && dur){ ctx2.fillStyle='rgba(232,163,23,.13)'; ctx2.fillRect(seg[0]/dur*W,0,(seg[1]-seg[0])/dur*W,H); }
-  if(peaks){
+  if(peaks && dur){
     const n=peaks.length, bw=W/n;
-    for(let i=0;i<n;i++){ const h=Math.max(1,peaks[i]*h0*0.85); ctx2.fillStyle=(i/n<pos)?'#2f6f5e':'#b9c7c1'; ctx2.fillRect(i*bw,top+(h0-h)/2,Math.max(1,bw-0.3),h); }
-  }else{ ctx2.fillStyle='#b9c7c1'; ctx2.fillRect(0,top+h0/2-1,W,2); ctx2.fillStyle='#2f6f5e'; ctx2.fillRect(0,top+h0/2-1,W*pos,2); }
+    for(let i=0;i<n;i++){ const h=Math.max(1,peaks[i]*h0*0.85), c=colorOf(peakSeg[i]);
+      ctx2.fillStyle=(i/n<pos)?c[0]:c[1]; ctx2.fillRect(i*bw,top+(h0-h)/2,Math.max(1,bw-0.3),h); }
+  }else{ ctx2.fillStyle='#b9c7c1'; ctx2.fillRect(0,top+h0/2-1,W,2); }
+  if(dur && multi) segs.forEach((s,k)=>{ if(k===0||!s.ok) return; // 境目
+    const x=Math.round(s.start/dur*W);
+    ctx2.fillStyle='#faf8f3'; ctx2.fillRect(x-2,0,4,H);
+    ctx2.fillStyle='rgba(31,35,40,.45)'; ctx2.fillRect(x-0.5,0,1,H); });
   if(dur){
-    const ms=marks();
+    const ms=gmarks();
     ms.forEach((m,i)=>{
       const x=m.t/dur*W, sel=i===selMark;
       ctx2.fillStyle=sel?'#c47f00':'#e8a317'; ctx2.fillRect(x-1,10,2,H);
@@ -686,6 +734,8 @@ function drawWave(){
 (function loop(){
   if(modelReady){
     $('curT').textContent=fmt(model.currentTime);
+    const k=segAt(model.currentTime);
+    if(k!==activeSeg){ activeSeg=k; $('trackList').querySelectorAll('li').forEach((l,j)=>l.classList.toggle('active',j===k)); }
     if(!model.paused && $('loopSeg').checked){ const seg=currentSegment(); if(seg && model.currentTime>=seg[1]-0.02) model.currentTime=seg[0]; }
     drawWave();
   }
@@ -698,12 +748,16 @@ function timeAtX(cx){ const r=canvas.getBoundingClientRect(); return Math.max(0,
 let clickT=null;
 $('waveWrap').addEventListener('click',e=>{
   const r=canvas.getBoundingClientRect(), dur=model.duration||1, x=e.clientX-r.left, y=e.clientY-r.top;
-  const hit=marks().findIndex(m=>Math.abs(m.t/dur*r.width-x)<(y<24?11:6));
+  const gm=gmarks(), hit=gm.findIndex(m=>Math.abs(m.t/dur*r.width-x)<(y<24?11:6));
   const t=timeAtX(e.clientX);
   clearTimeout(clickT);
-  clickT=setTimeout(()=>{ if(hit>=0){ selMark=hit; renderMarks(); playFrom(marks()[hit].t);} else model.currentTime=t; },180);
+  clickT=setTimeout(()=>{ if(hit>=0){ selMark=hit; renderMarks(); playFrom(gm[hit].t);} else model.currentTime=t; },180);
 });
 $('waveWrap').addEventListener('dblclick',e=>{ clearTimeout(clickT); addMarker(timeAtX(e.clientX)); });
+$('waveWrap').addEventListener('mousemove',e=>{ // マウスを乗せるとファイル名が出る
+  const k=segs.length>1?segAt(timeAtX(e.clientX)):-1;
+  $('waveWrap').title=k>=0?(k+1)+'. '+segs[k].tr.name:'';
+});
 
 function playFrom(t){ mine.pause(); model.currentTime=t; model.play(); }
 function toggleModel(){ if(!modelReady) return; if(model.paused){ mine.pause(); model.play(); } else model.pause(); }
@@ -714,38 +768,50 @@ $('addMark').onclick=()=>addMarker(model.currentTime);
 $('loopSeg').onchange=drawWave;
 
 /* ---------- 印 ---------- */
+/* 印は音源ごとに（その音源の中の秒数で）保存し、表示はつなげた全体の時間に直して並べる。
+   こうしておくと音源を並べ替えても印は自分の音源についていく */
+function gmarks(){
+  const out=[];
+  segs.forEach((s,k)=>{ if(s.ok) s.tr.markers.forEach(m=>out.push({m,k,t:s.start+Math.min(m.t,s.dur),name:m.name})); });
+  return out.sort((a,b)=>a.t-b.t);
+}
 function addMarker(t){
   if(!modelReady) return;
-  if(marks().some(m=>Math.abs(m.t-t)<0.15)) return;
-  marks().push({t,name:''}); marks().sort((a,b)=>a.t-b.t);
-  selMark=marks().findIndex(m=>m.t===t);
+  if(gmarks().some(g=>Math.abs(g.t-t)<0.15)) return;
+  const k=segAt(t); if(k<0) return;
+  const s=segs[k], m={t:Math.max(0,Math.min(s.dur,t-s.start)),name:''};
+  s.tr.markers.push(m); s.tr.markers.sort((a,b)=>a.t-b.t);
+  selMark=gmarks().findIndex(g=>g.m===m);
   touch(); renderMarks(); toast('印 '+(selMark+1)+' をつけました — N キーで名前を入力');
 }
-function selectedMarkTime(){ return selMark>=0&&marks()[selMark]?marks()[selMark].t:0; }
+function selectedMarkTime(){ const g=gmarks()[selMark]; return g?g.t:0; }
 function currentSegment(){
-  const ms=marks(); if(selMark<0||!ms[selMark]) return null;
-  return [ms[selMark].t, ms[selMark+1]?ms[selMark+1].t:(model.duration||ms[selMark].t)];
+  const ms=gmarks(); if(selMark<0||!ms[selMark]) return null;
+  return [ms[selMark].t, ms[selMark+1]?ms[selMark+1].t:(model.duration||totalDur())];
 }
 function focusMarkName(i){ const inp=$('markers').querySelectorAll('input')[i]; if(inp){ inp.focus(); inp.select(); } }
 function renderMarks(){
   const ul=$('markers'); ul.innerHTML='';
-  $('noMarks').style.display=marks().length?'none':'block';
-  const tm=$('trackList').querySelectorAll('.tmeta')[cur.curTrack]; if(tm) tm.textContent='印 '+marks().length;
-  marks().forEach((m,i)=>{
-    const li=document.createElement('li'); if(i===selMark) li.className='active';
-    li.innerHTML=`<span class="mnum">${i+1}</span><button class="small" title="ここから再生">▶</button><span class="mtime">${fmt(m.t)}</span>
+  const gm=gmarks();
+  $('noMarks').style.display=gm.length?'none':'block';
+  $('trackList').querySelectorAll('.tmeta').forEach((e,i)=>e.textContent=trackMeta(i));
+  gm.forEach((g,i)=>{
+    const m=g.m, li=document.createElement('li'); if(i===selMark) li.className='active';
+    if(segs.length>1) li.style.borderLeft='4px solid '+colorOf(g.k)[0];
+    li.innerHTML=`<span class="mnum">${i+1}</span><button class="small" title="ここから再生">▶</button><span class="mtime">${fmt(g.t)}</span>
       <input placeholder="名前をつける（例：Intro／the weather の th）" maxlength="60">
       <button class="x" title="0.2秒前へ">−0.2</button><button class="x" title="0.2秒後ろへ">+0.2</button><button class="x" title="削除">✕</button>`;
     const [play,minus,plus,del]=li.querySelectorAll('button');
     const inp=li.querySelector('input'); inp.value=m.name||'';
+    const reselect=()=>{ selMark=gmarks().findIndex(x=>x.m===m); renderMarks(); playFrom(selectedMarkTime()); };
     inp.oninput=()=>{ m.name=inp.value; drawWave(); };
     inp.onchange=()=>{ m.name=inp.value.trim(); touch(); };
     inp.onkeydown=e=>{ if(e.key==='Enter'||e.key==='Escape'){ e.preventDefault(); inp.blur(); } };
     inp.onfocus=()=>{ if(selMark!==i){ selMark=i; ul.querySelectorAll('li').forEach((l,k)=>l.classList.toggle('active',k===i)); } };
-    play.onclick=()=>{ selMark=i; renderMarks(); playFrom(m.t); };
-    minus.onclick=()=>{ m.t=Math.max(0,m.t-0.2); touch(); selMark=i; renderMarks(); playFrom(m.t); };
-    plus.onclick=()=>{ m.t=Math.min(model.duration||m.t,m.t+0.2); touch(); selMark=i; renderMarks(); playFrom(m.t); };
-    del.onclick=()=>{ marks().splice(i,1); if(selMark>=marks().length) selMark=marks().length-1; touch(); renderMarks(); };
+    play.onclick=()=>{ selMark=i; renderMarks(); playFrom(g.t); };
+    minus.onclick=()=>{ m.t=Math.max(0,m.t-0.2); touch(); reselect(); };
+    plus.onclick=()=>{ m.t=Math.min(segs[g.k].dur,m.t+0.2); touch(); reselect(); };
+    del.onclick=()=>{ const a=segs[g.k].tr.markers; a.splice(a.indexOf(m),1); const n=gmarks().length; if(selMark>=n) selMark=n-1; touch(); renderMarks(); };
     ul.appendChild(li);
   });
   drawWave();
@@ -767,8 +833,8 @@ document.addEventListener('keydown',e=>{
   else if(k===','||k==='<'){ setRate(cur.rate-0.05); toast('速度 '+cur.rate.toFixed(2)+'×'); }
   else if(k==='.'||k==='>'){ setRate(cur.rate+0.05); toast('速度 '+cur.rate.toFixed(2)+'×'); }
   else if(k==='ArrowUp'||k==='ArrowDown'){ e.preventDefault(); ensureGain(); setVol((cur.vol??100)+(k==='ArrowUp'?10:-10)); toast('音量 '+cur.vol+'%'); }
-  else if(k==='['||k===']'){ if(selectTrack(cur.curTrack+(k===']'?1:-1))) toast('🎧 '+(cur.curTrack+1)+'. '+trk().name); }
-  else if(/^[1-9]$/.test(k) && marks()[+k-1]){ selMark=+k-1; renderMarks(); playFrom(marks()[selMark].t); }
+  else if(k==='['||k===']'){ const i=Math.max(0,activeSeg)+(k===']'?1:-1); if(gotoTrack(i)) toast('🎧 '+(i+1)+'. '+segs[i].tr.name); }
+  else if(/^[1-9]$/.test(k) && gmarks()[+k-1]){ selMark=+k-1; renderMarks(); playFrom(selectedMarkTime()); }
 });
 document.querySelectorAll('button').forEach(b=>b.addEventListener('keydown',e=>{ if(e.key===' '||e.key==='Enter') e.preventDefault(); }));
 document.addEventListener('mouseup',()=>{ const a=document.activeElement; if(a && a.tagName==='BUTTON') a.blur(); });
