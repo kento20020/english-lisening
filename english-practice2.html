@@ -67,8 +67,20 @@
   #drop.over{border-color:var(--acc);background:var(--acc2);color:var(--acc)}
   #drop u{color:var(--acc)}
   #modelArea{display:none}
-  .file-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;padding:10px 12px;background:#faf8f3;border:1px solid var(--line);border-radius:10px}
-  #fileName{font-weight:600;word-break:break-all;flex:1;min-width:160px}
+  .track-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+  .track-head .sp{flex:1}
+  #trackList{list-style:none;margin:0 0 12px;padding:0;display:flex;flex-direction:column;gap:6px}
+  #trackList li{display:flex;align-items:center;gap:6px;padding:6px 8px;border:1px solid var(--line);border-radius:10px;background:#fff;cursor:pointer}
+  #trackList li:hover{background:#faf8f3}
+  #trackList li.active{border-color:var(--acc);background:var(--acc2);cursor:default}
+  .tnum{width:24px;height:24px;border-radius:6px;background:#b9c7c1;color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex:none}
+  #trackList li.active .tnum{background:var(--acc)}
+  #trackList input{flex:1;min-width:0;border:1px solid transparent;border-radius:6px;padding:5px 6px;font:inherit;font-size:14px;font-weight:600;background:transparent;cursor:inherit}
+  #trackList li.active input{cursor:text}
+  #trackList li.active input:hover{border-color:var(--line)}
+  #trackList input:focus{outline:none;border-color:var(--acc);background:#fff}
+  .tmeta{font-size:12px;color:var(--muted);flex:none;white-space:nowrap}
+  .x:disabled{opacity:.25}
   #waveWrap{position:relative;height:130px;background:#faf8f3;border:1px solid var(--line);border-radius:10px;overflow:hidden;cursor:pointer;user-select:none}
   #wave{width:100%;height:100%;display:block}
   .time-row{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin:6px 2px 12px;font-variant-numeric:tabular-nums;gap:8px}
@@ -160,14 +172,15 @@
   <!-- お手本 -->
   <section class="card">
     <h2>② お手本音声</h2>
-    <input type="file" id="fileInput" accept="audio/*,video/*" style="display:none">
-    <div id="drop">音声ファイルをここにドラッグ＆ドロップ　または <u>クリックしてファイルを選ぶ</u></div>
+    <input type="file" id="fileInput" accept="audio/*,video/*" multiple style="display:none">
+    <div id="drop">音声ファイルをここにドラッグ＆ドロップ　または <u>クリックしてファイルを選ぶ</u><br><span style="font-size:12px">複数のファイルをまとめて選べます</span></div>
 
     <div id="modelArea">
-      <div class="file-row">
-        <div id="fileName"></div>
-        <button id="changeBtn" class="small">🔄 音源を変更</button>
+      <div class="track-head">
+        <span class="muted" id="trackCount"></span><span class="sp"></span>
+        <button id="addTrackBtn" class="small">＋ 音源を追加</button>
       </div>
+      <ul id="trackList"></ul>
       <div id="waveWrap"><canvas id="wave"></canvas></div>
       <div class="time-row"><span id="curT">0:00.0</span><span>クリックで移動・ダブルクリックで印・印の丸をクリックでそこから再生</span><span id="durT">0:00.0</span></div>
 
@@ -211,7 +224,7 @@
   <div class="help">
     ショートカット：<kbd>Space</kbd> 録音／停止　<kbd>P</kbd> 自分の声を再生　<kbd>S</kbd> 保存
     <kbd>Enter</kbd> お手本 再生／一時停止　<kbd>M</kbd> 印をつける　<kbd>N</kbd> 選択中の印に名前　<kbd>1</kbd>〜<kbd>9</kbd> その印から再生<br>
-    <kbd>←</kbd><kbd>→</kbd> 3秒移動　<kbd>,</kbd><kbd>.</kbd> 速度 遅く／速く　<kbd>↑</kbd><kbd>↓</kbd> お手本の音量<br>
+    <kbd>←</kbd><kbd>→</kbd> 3秒移動　<kbd>,</kbd><kbd>.</kbd> 速度 遅く／速く　<kbd>↑</kbd><kbd>↓</kbd> お手本の音量　<kbd>[</kbd><kbd>]</kbd> 前／次の音源<br>
     ヒント：お手本と同時に録音するときはイヤホンを使うと、お手本の音が録音に入りません。データはこのブラウザの中に保存されます。大事なプロジェクトは「書き出し」でバックアップしてください。
   </div>
 </div>
@@ -223,6 +236,7 @@
 const $ = id => document.getElementById(id);
 const fmt = s => { if(!isFinite(s)) s=0; const m=Math.floor(s/60); return m+':'+(s%60).toFixed(1).padStart(4,'0'); };
 const esc = s => String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const uid = () => Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 function toast(t){ const el=$('toast'); el.textContent=t; el.classList.add('show'); clearTimeout(toast._t); toast._t=setTimeout(()=>el.classList.remove('show'),1800); }
 
 /* ---------- モーダル ---------- */
@@ -253,7 +267,7 @@ function openDB(){
             q.result.forEach(m=>{
               let mk=[]; try{ mk=(JSON.parse(localStorage.getItem('speakback-marks:'+m.name))||[]).map(x=>({t:x.t,name:x.name||x.label||''})); }catch(e){}
               tx.objectStore('projects').add({name:m.name.replace(/\.[^.]+$/,''),created:m.used||Date.now(),updated:m.used||Date.now(),
-                audio:{name:m.name,type:m.type,blob:m.blob},markers:mk,rate:1,vol:100});
+                tracks:[{id:uid(),name:m.name,type:m.type,blob:m.blob,markers:mk}],curTrack:0,rate:1,vol:100});
             });
             d.deleteObjectStore('models');
           };
@@ -275,7 +289,21 @@ const dbPut   = (s,v) => { if(v.id==null) delete v.id; return req(s,'readwrite',
 const dbDel   = (s,k) => req(s,'readwrite',st=>st.delete(k)).catch(()=>{});
 
 /* ---------- プロジェクト ---------- */
-function blankProject(){ return {name:'無題のプロジェクト',created:Date.now(),updated:Date.now(),audio:null,markers:[],rate:1,vol:100}; }
+function blankProject(){ return {name:'無題のプロジェクト',created:Date.now(),updated:Date.now(),tracks:[],curTrack:0,rate:1,vol:100}; }
+// 1プロジェクト＝複数の音源（tracks）。旧形式（audio＋markers が1つ）は読み込み時に変換する
+function normalizeProject(p){
+  if(!p) return p;
+  if(!Array.isArray(p.tracks)){
+    p.tracks = p.audio ? [{id:uid(),name:p.audio.name,type:p.audio.type,blob:p.audio.blob,markers:p.markers||[]}] : [];
+    delete p.audio; delete p.markers;
+  }
+  p.tracks.forEach(t=>{ if(!t.id) t.id=uid(); t.markers=(t.markers||[]).map(m=>({t:m.t,name:m.name||m.label||''})); });
+  p.curTrack=Math.max(0,Math.min(p.tracks.length-1,p.curTrack|0));
+  return p;
+}
+const trk   = () => cur.tracks[cur.curTrack]||null;
+const marks = () => { const t=trk(); return t?t.markers:[]; };
+const baseName = n => String(n).replace(/\.[^.]+$/,'');
 let cur=blankProject();
 let saveTimer=null, dirty=false;
 function touch(){ // 変更があったら自動保存
@@ -296,21 +324,21 @@ async function saveProject(){
 async function openProject(p){
   if(dirty) await saveProject();
   model.pause(); mine.pause();
-  cur=p; cur.markers=(cur.markers||[]).map(m=>({t:m.t,name:m.name||m.label||''}));
+  cur=normalizeProject(p);
   if(cur.id!=null) try{ localStorage.setItem('speakback-last',cur.id); }catch(e){}
-  selMark=cur.markers.length?0:-1;
+  selMark=marks().length?0:-1;
   renderProject();
 }
 function renderProject(){
   $('projName').value=cur.name;
   $('saveState').textContent=cur.id!=null?'✓ 保存済み':'';
   setRate(cur.rate||1,false); setVol(cur.vol??100,false);
-  if(cur.audio){ setModelAudio(cur.audio.blob,cur.audio.name); }
+  if(trk()){ setModelAudio(trk().blob,trk().name); }
   else{
     model.pause(); model.removeAttribute('src'); model.load(); modelReady=false; peaks=null;
     $('modelArea').style.display='none'; $('drop').style.display='block';
   }
-  renderMarks(); renderSaved();
+  renderTracks(); renderMarks(); renderSaved();
   if($('projPanel').style.display==='block') renderProjList();
 }
 $('projName').addEventListener('change',()=>{ cur.name=$('projName').value.trim()||'無題のプロジェクト'; $('projName').value=cur.name; touch(); });
@@ -328,14 +356,17 @@ async function renderProjList(){
   if(!list.length){ ul.innerHTML='<li class="muted">保存されたプロジェクトはまだありません。音源を読み込むか録音を保存すると、自動で保存されます。</li>'; return; }
   list.forEach(p=>{
     const n=recs.filter(r=>r.projectId===p.id).length;
+    const tr=normalizeProject({...p}).tracks;
+    const tInfo=tr.length?'🎧 '+tr.length+' 音源（'+esc(tr.slice(0,3).map(t=>t.name).join('、'))+(tr.length>3?' ほか':'')+'）':'音源なし';
     const li=document.createElement('li'); if(p.id===cur.id) li.className='current';
     li.innerHTML=`<div class="pinfo"><div class="pname">${esc(p.name)}${p.id===cur.id?'（開いています）':''}</div>
-      <div class="pmeta">${p.audio?'🎧 '+esc(p.audio.name):'音源なし'} ・ 印 ${(p.markers||[]).length} ・ 録音 ${n} ・ ${new Date(p.updated).toLocaleString('ja-JP',{year:'numeric',month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})}</div></div>
+      <div class="pmeta">${tInfo} ・ 印 ${tr.reduce((s,t)=>s+t.markers.length,0)} ・ 録音 ${n} ・ ${new Date(p.updated).toLocaleString('ja-JP',{year:'numeric',month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})}</div></div>
       <button class="small primary">開く</button><button class="small">書き出し</button><button class="small">複製</button><button class="small danger">削除</button>`;
     const [bOpen,bExp,bDup,bDel]=li.querySelectorAll('button');
     bOpen.onclick=async()=>{ await openProject(await dbGet('projects',p.id)); toast('「'+p.name+'」を開きました'); };
     bExp.onclick=()=>exportProject(p);
-    bDup.onclick=async()=>{ const c={...p,id:undefined,name:p.name+' のコピー',created:Date.now(),updated:Date.now(),markers:(p.markers||[]).map(m=>({...m}))}; c.id=await dbPut('projects',c); renderProjList(); toast('複製しました'); };
+    bDup.onclick=async()=>{ const s=normalizeProject({...p}); const c={...s,id:undefined,name:p.name+' のコピー',created:Date.now(),updated:Date.now(),
+        tracks:s.tracks.map(t=>({...t,id:uid(),markers:t.markers.map(m=>({...m}))}))}; c.id=await dbPut('projects',c); renderProjList(); toast('複製しました'); };
     bDel.onclick=async()=>{
       const ok=await ask('「'+p.name+'」を削除しますか？','このプロジェクトの音源・印・保存した録音（'+n+'件）がすべて消えます。元に戻せません。',[['削除する',true,'danger'],['キャンセル',false]]);
       if(!ok) return;
@@ -354,10 +385,12 @@ const b64ToBlob = (s,type) => { const bin=atob(s); const u=new Uint8Array(bin.le
 async function exportProject(p){
   toast('書き出し中…');
   const recs=(await dbAll('recs')).filter(r=>r.projectId===p.id);
-  const out={format:'speakback-project',version:1,exported:new Date().toISOString(),
-    project:{name:p.name,created:p.created,markers:p.markers||[],rate:p.rate||1,vol:p.vol??100,
-      audio:p.audio?{name:p.audio.name,type:p.audio.type,data:await blobToB64(p.audio.blob)}:null},
-    recordings:await Promise.all(recs.map(async r=>({name:r.name,type:r.type,created:r.created,data:await blobToB64(r.blob)})))};
+  const s=normalizeProject({...p});
+  const out={format:'speakback-project',version:2,exported:new Date().toISOString(),
+    project:{name:p.name,created:p.created,rate:p.rate||1,vol:p.vol??100,curTrack:s.curTrack,
+      tracks:await Promise.all(s.tracks.map(async t=>({name:t.name,type:t.type,markers:t.markers,data:await blobToB64(t.blob)})))},
+    recordings:await Promise.all(recs.map(async r=>({name:r.name,type:r.type,created:r.created,
+      trackIndex:s.tracks.findIndex(t=>t.id===r.trackId),data:await blobToB64(r.blob)})))};
   const url=URL.createObjectURL(new Blob([JSON.stringify(out)],{type:'application/json'}));
   const a=document.createElement('a'); a.href=url; a.download=(p.name||'project').replace(/[\\/:*?"<>|]/g,'_')+'.speakback.json';
   document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),5000);
@@ -367,10 +400,12 @@ async function importProject(file){
     const j=JSON.parse(await file.text());
     if(j.format!=='speakback-project') throw 0;
     const p=j.project;
-    const np={name:p.name||'読み込んだプロジェクト',created:p.created||Date.now(),updated:Date.now(),markers:p.markers||[],rate:p.rate||1,vol:p.vol??100,
-      audio:p.audio?{name:p.audio.name,type:p.audio.type,blob:b64ToBlob(p.audio.data,p.audio.type)}:null};
+    const src=Array.isArray(p.tracks)?p.tracks:(p.audio?[{...p.audio,markers:p.markers||[]}]:[]); // v1（音源1つ）にも対応
+    const tracks=src.map(t=>({id:uid(),name:t.name,type:t.type,markers:t.markers||[],blob:b64ToBlob(t.data,t.type)}));
+    const np={name:p.name||'読み込んだプロジェクト',created:p.created||Date.now(),updated:Date.now(),tracks,curTrack:p.curTrack|0,rate:p.rate||1,vol:p.vol??100};
     np.id=await dbPut('projects',np);
-    for(const r of j.recordings||[]) await dbPut('recs',{name:r.name,type:r.type,created:r.created,blob:b64ToBlob(r.data,r.type),projectId:np.id});
+    for(const r of j.recordings||[]) await dbPut('recs',{name:r.name,type:r.type,created:r.created,blob:b64ToBlob(r.data,r.type),projectId:np.id,
+      trackId:tracks[r.trackIndex]?tracks[r.trackIndex].id:undefined});
     await openProject(np); toast('「'+np.name+'」を読み込みました');
   }catch(e){ ask('読み込めませんでした','Speak Back で書き出したプロジェクトファイル（.speakback.json）を選んでください。',[['OK',0]]); }
 }
@@ -446,9 +481,10 @@ async function saveCurrent(){
   if(!db){ toast('このブラウザでは保存できません'); return; }
   if(cur.id==null) await saveProject();
   const d=new Date();
-  const markName = selMark>=0&&cur.markers[selMark]&&cur.markers[selMark].name ? cur.markers[selMark].name+' ' : '';
+  const ms=marks();
+  const markName = selMark>=0&&ms[selMark]&&ms[selMark].name ? ms[selMark].name+' ' : '';
   await dbPut('recs',{name:markName+d.toLocaleString('ja-JP',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit'}),
-    blob:lastBlob,type:lastBlob.type,created:d.getTime(),projectId:cur.id});
+    blob:lastBlob,type:lastBlob.type,created:d.getTime(),projectId:cur.id,trackId:trk()?trk().id:undefined});
   $('saveBtn').disabled=true; toast('「'+cur.name+'」に保存しました'); renderSaved();
 }
 async function renderSaved(){
@@ -462,7 +498,9 @@ async function renderSaved(){
     const li=document.createElement('li');
     const url=URL.createObjectURL(r.blob);
     const ext=(r.type||'').includes('mp4')?'m4a':(r.type||'').includes('ogg')?'ogg':'webm';
+    const tr=r.projectId===cur.id&&cur.tracks.length>1?cur.tracks.find(t=>t.id===r.trackId):null;
     li.innerHTML=(showAll?`<span class="ptag">${esc(projs[r.projectId]||'プロジェクトなし')}</span>`:'')+
+      (tr?`<span class="ptag">🎧 ${esc(baseName(tr.name))}</span>`:'')+
       `<input class="nm"><audio controls src="${url}"></audio><a download title="ファイルとしてダウンロード" style="text-decoration:none">⬇</a><button class="x" title="削除">✕</button>`;
     const nm=li.querySelector('.nm'); nm.value=r.name;
     const a=li.querySelector('a'); a.href=url;
@@ -485,7 +523,6 @@ function setModelAudio(blob,name){
   if(model.src && model.src.startsWith('blob:')) URL.revokeObjectURL(model.src);
   model.src=URL.createObjectURL(blob);
   model.defaultPlaybackRate=cur.rate||1; model.playbackRate=cur.rate||1;
-  $('fileName').textContent='🎧 '+name;
   $('modelArea').style.display='block'; $('drop').style.display='none';
   $('curT').textContent=fmt(0);
   modelReady=true; peaks=null; drawWave();
@@ -502,36 +539,83 @@ function setModelAudio(blob,name){
   })();
 }
 
-async function handleAudioFile(file){
-  if(!cur.audio){
-    if(cur.name==='無題のプロジェクト') cur.name=file.name.replace(/\.[^.]+$/,'');
-    cur.audio={name:file.name,type:file.type,blob:file};
-    renderProject(); touch(); return;
+/* 音源の追加（複数可）。confirm=true のとき、既存プロジェクトへ追加するか新規にするかを聞く */
+const isAudio = f => /^(audio|video)\//.test(f.type) || /\.(mp3|m4a|aac|wav|ogg|oga|opus|flac|webm|mp4|mov)$/i.test(f.name);
+async function handleAudioFiles(files,confirm){
+  files=[...files].filter(isAudio);
+  if(!files.length){ toast('音声ファイルを選んでください'); return; }
+  const mk=f=>({id:uid(),name:f.name,type:f.type,blob:f,markers:[]});
+  const what=files.length>1?files.length+' 個のファイル':'「'+files[0].name+'」';
+  if(confirm && cur.tracks.length){
+    const choice=await ask('音源を追加',what+'をどうしますか？',[
+      ['このプロジェクトに追加する','add','primary'],
+      ['新しいプロジェクトとして開く（今のプロジェクトはそのまま残ります）','new'],
+      ['キャンセル',null]]);
+    if(!choice) return;
+    if(choice==='new'){
+      const p=blankProject(); p.name=baseName(files[0].name); p.tracks=files.map(mk); p.rate=cur.rate; p.vol=cur.vol;
+      await openProject(p); touch(); toast('新しいプロジェクトを作りました'); return;
+    }
   }
-  const choice=await ask('音源を変更','「'+file.name+'」をどう開きますか？',[
-    ['新しいプロジェクトとして開く（今のプロジェクトはそのまま残ります）','new','primary'],
-    ['このプロジェクトの音源を差し替える（印はそのまま）','replace'],
-    ['このプロジェクトの音源を差し替えて、印もリセット','reset'],
-    ['キャンセル',null]]);
-  if(!choice) return;
-  if(choice==='new'){
-    const p=blankProject(); p.name=file.name.replace(/\.[^.]+$/,''); p.audio={name:file.name,type:file.type,blob:file};
-    p.rate=cur.rate; p.vol=cur.vol;
-    await openProject(p); touch(); toast('新しいプロジェクトを作りました');
-  }else{
-    cur.audio={name:file.name,type:file.type,blob:file};
-    if(choice==='reset'){ cur.markers=[]; selMark=-1; }
-    renderProject(); touch(); toast('音源を差し替えました');
-  }
+  if(!cur.tracks.length && cur.name==='無題のプロジェクト') cur.name=baseName(files[0].name);
+  const start=cur.tracks.length;
+  cur.tracks.push(...files.map(mk));
+  cur.curTrack=start; selMark=-1;
+  renderProject(); touch();
+  toast(what+'を追加しました（全 '+cur.tracks.length+' 音源）');
+}
+function selectTrack(i){
+  if(i<0||i>=cur.tracks.length||(i===cur.curTrack&&modelReady)) return false;
+  mine.pause();
+  cur.curTrack=i; selMark=marks().length?0:-1;
+  setModelAudio(trk().blob,trk().name); renderTracks(); renderMarks(); touch();
+  return true;
+}
+function moveTrack(i,d){
+  const j=i+d; if(j<0||j>=cur.tracks.length) return;
+  const curId=trk().id;
+  [cur.tracks[i],cur.tracks[j]]=[cur.tracks[j],cur.tracks[i]];
+  cur.curTrack=cur.tracks.findIndex(t=>t.id===curId);
+  renderTracks(); touch();
+}
+async function removeTrack(i){
+  const t=cur.tracks[i];
+  const ok=await ask('「'+t.name+'」をプロジェクトから外しますか？','この音源と、つけた印（'+t.markers.length+' 個）が消えます。保存した録音は残ります。',[['外す',true,'danger'],['キャンセル',false]]);
+  if(!ok) return;
+  const wasCur=i===cur.curTrack;
+  cur.tracks.splice(i,1);
+  if(i<cur.curTrack) cur.curTrack--;
+  cur.curTrack=Math.max(0,Math.min(cur.curTrack,cur.tracks.length-1));
+  if(wasCur){ selMark=marks().length?0:-1; renderProject(); } else renderTracks();
+  touch(); toast('音源を外しました');
+}
+function renderTracks(){
+  const ul=$('trackList'); ul.innerHTML='';
+  $('trackCount').textContent='このプロジェクトの音源：'+cur.tracks.length+' 個';
+  cur.tracks.forEach((t,i)=>{
+    const li=document.createElement('li'); if(i===cur.curTrack) li.className='active';
+    li.innerHTML=`<span class="tnum">${i+1}</span><input maxlength="80" title="名前を変更できます"><span class="tmeta">印 ${t.markers.length}</span>
+      <button class="x" title="上へ">↑</button><button class="x" title="下へ">↓</button><button class="x" title="この音源を外す">✕</button>`;
+    const inp=li.querySelector('input'); inp.value=t.name;
+    const [up,down,del]=li.querySelectorAll('button');
+    up.disabled=i===0; down.disabled=i===cur.tracks.length-1;
+    li.onclick=e=>{ if(e.target.tagName==='BUTTON') return;
+      const wasInp=e.target.tagName==='INPUT';
+      if(selectTrack(i) && wasInp){ const n=$('trackList').querySelectorAll('input')[i]; n.focus(); n.select(); } };
+    inp.onchange=()=>{ t.name=inp.value.trim()||t.name; inp.value=t.name; touch(); renderSaved(); };
+    inp.onkeydown=e=>{ if(e.key==='Enter'||e.key==='Escape'){ e.preventDefault(); inp.blur(); } };
+    up.onclick=()=>moveTrack(i,-1); down.onclick=()=>moveTrack(i,1); del.onclick=()=>removeTrack(i);
+    ul.appendChild(li);
+  });
 }
 $('drop').onclick=()=>$('fileInput').click();
-$('changeBtn').onclick=()=>$('fileInput').click();
-$('fileInput').onchange=e=>{ if(e.target.files[0]) handleAudioFile(e.target.files[0]); e.target.value=''; };
+$('addTrackBtn').onclick=()=>$('fileInput').click();
+$('fileInput').onchange=e=>{ const fs=[...e.target.files]; e.target.value=''; if(fs.length) handleAudioFiles(fs,false); };
 ['dragenter','dragover'].forEach(t=>document.addEventListener(t,e=>{e.preventDefault(); $('drop').classList.add('over');}));
 ['dragleave','drop'].forEach(t=>document.addEventListener(t,e=>{e.preventDefault(); if(t==='drop'||e.target===$('drop')) $('drop').classList.remove('over');}));
 document.addEventListener('drop',e=>{
-  const f=e.dataTransfer.files[0]; if(!f) return;
-  if(/\.json$/i.test(f.name)) importProject(f); else handleAudioFile(f);
+  const fs=[...e.dataTransfer.files]; if(!fs.length) return;
+  if(fs.length===1 && /\.json$/i.test(fs[0].name)) importProject(fs[0]); else handleAudioFiles(fs,true);
 });
 
 model.onloadedmetadata=()=>{ $('durT').textContent=fmt(model.duration); drawWave(); };
@@ -580,7 +664,7 @@ function drawWave(){
     for(let i=0;i<n;i++){ const h=Math.max(1,peaks[i]*h0*0.85); ctx2.fillStyle=(i/n<pos)?'#2f6f5e':'#b9c7c1'; ctx2.fillRect(i*bw,top+(h0-h)/2,Math.max(1,bw-0.3),h); }
   }else{ ctx2.fillStyle='#b9c7c1'; ctx2.fillRect(0,top+h0/2-1,W,2); ctx2.fillStyle='#2f6f5e'; ctx2.fillRect(0,top+h0/2-1,W*pos,2); }
   if(dur){
-    const ms=cur.markers;
+    const ms=marks();
     ms.forEach((m,i)=>{
       const x=m.t/dur*W, sel=i===selMark;
       ctx2.fillStyle=sel?'#c47f00':'#e8a317'; ctx2.fillRect(x-1,10,2,H);
@@ -614,10 +698,10 @@ function timeAtX(cx){ const r=canvas.getBoundingClientRect(); return Math.max(0,
 let clickT=null;
 $('waveWrap').addEventListener('click',e=>{
   const r=canvas.getBoundingClientRect(), dur=model.duration||1, x=e.clientX-r.left, y=e.clientY-r.top;
-  const hit=cur.markers.findIndex(m=>Math.abs(m.t/dur*r.width-x)<(y<24?11:6));
+  const hit=marks().findIndex(m=>Math.abs(m.t/dur*r.width-x)<(y<24?11:6));
   const t=timeAtX(e.clientX);
   clearTimeout(clickT);
-  clickT=setTimeout(()=>{ if(hit>=0){ selMark=hit; renderMarks(); playFrom(cur.markers[hit].t);} else model.currentTime=t; },180);
+  clickT=setTimeout(()=>{ if(hit>=0){ selMark=hit; renderMarks(); playFrom(marks()[hit].t);} else model.currentTime=t; },180);
 });
 $('waveWrap').addEventListener('dblclick',e=>{ clearTimeout(clickT); addMarker(timeAtX(e.clientX)); });
 
@@ -632,21 +716,22 @@ $('loopSeg').onchange=drawWave;
 /* ---------- 印 ---------- */
 function addMarker(t){
   if(!modelReady) return;
-  if(cur.markers.some(m=>Math.abs(m.t-t)<0.15)) return;
-  cur.markers.push({t,name:''}); cur.markers.sort((a,b)=>a.t-b.t);
-  selMark=cur.markers.findIndex(m=>m.t===t);
+  if(marks().some(m=>Math.abs(m.t-t)<0.15)) return;
+  marks().push({t,name:''}); marks().sort((a,b)=>a.t-b.t);
+  selMark=marks().findIndex(m=>m.t===t);
   touch(); renderMarks(); toast('印 '+(selMark+1)+' をつけました — N キーで名前を入力');
 }
-function selectedMarkTime(){ return selMark>=0&&cur.markers[selMark]?cur.markers[selMark].t:0; }
+function selectedMarkTime(){ return selMark>=0&&marks()[selMark]?marks()[selMark].t:0; }
 function currentSegment(){
-  const ms=cur.markers; if(selMark<0||!ms[selMark]) return null;
+  const ms=marks(); if(selMark<0||!ms[selMark]) return null;
   return [ms[selMark].t, ms[selMark+1]?ms[selMark+1].t:(model.duration||ms[selMark].t)];
 }
 function focusMarkName(i){ const inp=$('markers').querySelectorAll('input')[i]; if(inp){ inp.focus(); inp.select(); } }
 function renderMarks(){
   const ul=$('markers'); ul.innerHTML='';
-  $('noMarks').style.display=cur.markers.length?'none':'block';
-  cur.markers.forEach((m,i)=>{
+  $('noMarks').style.display=marks().length?'none':'block';
+  const tm=$('trackList').querySelectorAll('.tmeta')[cur.curTrack]; if(tm) tm.textContent='印 '+marks().length;
+  marks().forEach((m,i)=>{
     const li=document.createElement('li'); if(i===selMark) li.className='active';
     li.innerHTML=`<span class="mnum">${i+1}</span><button class="small" title="ここから再生">▶</button><span class="mtime">${fmt(m.t)}</span>
       <input placeholder="名前をつける（例：Intro／the weather の th）" maxlength="60">
@@ -660,7 +745,7 @@ function renderMarks(){
     play.onclick=()=>{ selMark=i; renderMarks(); playFrom(m.t); };
     minus.onclick=()=>{ m.t=Math.max(0,m.t-0.2); touch(); selMark=i; renderMarks(); playFrom(m.t); };
     plus.onclick=()=>{ m.t=Math.min(model.duration||m.t,m.t+0.2); touch(); selMark=i; renderMarks(); playFrom(m.t); };
-    del.onclick=()=>{ cur.markers.splice(i,1); if(selMark>=cur.markers.length) selMark=cur.markers.length-1; touch(); renderMarks(); };
+    del.onclick=()=>{ marks().splice(i,1); if(selMark>=marks().length) selMark=marks().length-1; touch(); renderMarks(); };
     ul.appendChild(li);
   });
   drawWave();
@@ -682,7 +767,8 @@ document.addEventListener('keydown',e=>{
   else if(k===','||k==='<'){ setRate(cur.rate-0.05); toast('速度 '+cur.rate.toFixed(2)+'×'); }
   else if(k==='.'||k==='>'){ setRate(cur.rate+0.05); toast('速度 '+cur.rate.toFixed(2)+'×'); }
   else if(k==='ArrowUp'||k==='ArrowDown'){ e.preventDefault(); ensureGain(); setVol((cur.vol??100)+(k==='ArrowUp'?10:-10)); toast('音量 '+cur.vol+'%'); }
-  else if(/^[1-9]$/.test(k) && cur.markers[+k-1]){ selMark=+k-1; renderMarks(); playFrom(cur.markers[selMark].t); }
+  else if(k==='['||k===']'){ if(selectTrack(cur.curTrack+(k===']'?1:-1))) toast('🎧 '+(cur.curTrack+1)+'. '+trk().name); }
+  else if(/^[1-9]$/.test(k) && marks()[+k-1]){ selMark=+k-1; renderMarks(); playFrom(marks()[selMark].t); }
 });
 document.querySelectorAll('button').forEach(b=>b.addEventListener('keydown',e=>{ if(e.key===' '||e.key==='Enter') e.preventDefault(); }));
 document.addEventListener('mouseup',()=>{ const a=document.activeElement; if(a && a.tagName==='BUTTON') a.blur(); });
