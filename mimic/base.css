@@ -1,0 +1,115 @@
+/* Mimic デザイン試作: 3案で共通の土台（仕組みに必要なものだけ。見た目は各案の CSS で決める） */
+
+*, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; }
+
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+button:disabled { cursor: default; }
+/* アイコンの中をクリックしても、ボタンを押したことになるように */
+button svg, a svg { pointer-events: none; }
+
+.ic {
+  width: 1.15em;
+  height: 1.15em;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vertical-align: -0.2em;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* 最初は隠しておき、仕組み側（mimic.js）が表示を切り替えるもの */
+#projPanel, #modelArea, #waveBusy, #modal { display: none; }
+
+#waveWrap {
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+}
+#wave { width: 100%; height: 100%; display: block; }
+#waveBusy { position: absolute; inset: 0; align-items: center; justify-content: center; }
+
+#modal {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+#modal .mbtns { display: flex; flex-direction: column; gap: 8px; }
+
+.toast {
+  position: fixed;
+  left: 50%;
+  z-index: 60;
+  width: max-content;
+  max-width: calc(100vw - 32px);
+  transform: translate(-50%, 8px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .18s ease, transform .18s ease;
+}
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+/* 一覧の行が画面からはみ出さないように（入力欄や音声プレーヤーの最小幅で広がるのを防ぐ） */
+#trackList, #markers, #saved, #projList { min-width: 0; grid-template-columns: minmax(0, 1fr); }
+#trackList li, #markers li, #saved li, #projList li { min-width: 0; }
+#markers input, #saved .nm { width: 0; min-width: 0; }
+#trackList input { width: 100%; min-width: 0; }
+#saved audio { width: 100%; max-width: 100%; min-width: 0; }
+#meter { overflow: hidden; }
+#meter i { display: block; height: 100%; width: 0; transition: width .05s linear; }
+.rec-dot { display: inline-block; width: .6em; height: .6em; margin-right: .4em; border-radius: 50%; background: currentColor; animation: rec-blink 1s infinite; }
+@keyframes rec-blink { 50% { opacity: .3; } }
+
+/* タッチ端末ではキーボードの案内を出さない */
+@media (hover: none) {
+  kbd, .kbd-only { display: none !important; }
+}
+
+:focus-visible { outline: 2px solid var(--focus, #4a7cff); outline-offset: 2px; }
+
+/* デザイン案の切り替え（試作用） */
+.proto-bar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  overflow-x: auto;
+  padding: 6px 12px;
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: nowrap;
+  background: var(--proto-bg, #e9ebef);
+  color: var(--proto-ink, #4d5566);
+  scrollbar-width: none;
+}
+.proto-bar::-webkit-scrollbar { display: none; }
+.proto-bar a {
+  padding: 3px 9px;
+  border-radius: 999px;
+  color: inherit;
+  text-decoration: none;
+}
+.proto-bar a:first-child { margin-right: 6px; font-weight: 700; }
+.proto-bar a[aria-current="page"] { background: var(--proto-on, #fff); color: var(--proto-on-ink, #111); font-weight: 700; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; }
+}

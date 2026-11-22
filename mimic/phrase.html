@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mimic Phrase</title>
+<meta name="description" content="Mimic デザイン案 C（Phrase）：フレーズごとに、聞く・まねる・比べる">
+<meta name="theme-color" content="#0E5E4E">
+<link rel="icon" href="logo.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&display=swap">
+<link rel="stylesheet" href="base.css">
+<link rel="stylesheet" href="phrase.css">
+</head>
+<body data-proj-overlay="1">
+<nav class="proto-bar" aria-label="デザイン案の切り替え">
+  <a href="./">Mimic デザイン案</a>
+  <a href="studio.html">A Studio</a>
+  <a href="pocket.html">B Pocket</a>
+  <a href="phrase.html" aria-current="page">C Phrase</a>
+</nav>
+
+<header class="band">
+  <div class="band-inner">
+    <a class="brand" href="./" aria-label="Mimic デザイン案の一覧へ">Mimic</a>
+    <div class="proj">
+      <input id="projName" placeholder="プロジェクト名" title="クリックして名前を変更" aria-label="プロジェクト名" autocomplete="off">
+      <span id="saveState" aria-live="polite"></span>
+    </div>
+    <div class="band-actions">
+      <button id="projListBtn" class="bbtn" aria-expanded="false" aria-controls="projPanel"><svg class="ic" aria-hidden="true"><use href="#i-list"/></svg><span>一覧</span></button>
+      <button id="projNewBtn" class="bbtn"><svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg><span>新規</span></button>
+    </div>
+  </div>
+  <section id="projPanel" aria-label="プロジェクト一覧">
+    <div class="panel-head">
+      <h2>プロジェクト一覧</h2>
+      <button class="iconbtn" data-close-proj aria-label="閉じる"><svg class="ic" aria-hidden="true"><use href="#i-x"/></svg></button>
+    </div>
+    <ul id="projList"></ul>
+    <div class="panel-foot">
+      <button id="importBtn" class="btn"><svg class="ic" aria-hidden="true"><use href="#i-upload"/></svg><span>プロジェクトファイルを読み込む</span></button>
+      <p>「書き出し」で作ったファイルを読み込めます。Speak Back で書き出したファイルも使えます。</p>
+    </div>
+    <input type="file" id="importInput" accept=".json,application/json" hidden>
+  </section>
+</header>
+
+<main class="flow">
+  <section class="step" aria-labelledby="s1">
+    <div class="step-head"><span class="num" aria-hidden="true">1</span><h2 id="s1">お手本を用意する</h2></div>
+    <div id="drop">
+      <svg class="ic" aria-hidden="true"><use href="#i-file"/></svg>
+      <span><strong>お手本の音声を追加</strong><br><small>ドラッグ＆ドロップ、またはクリックで選ぶ。複数選ぶと順番につなげます</small></span>
+    </div>
+    <div class="tracks">
+      <div class="row-head">
+        <span class="label" id="trackCount"></span>
+        <button id="addTrackBtn" class="btn small"><svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg><span>音源を追加</span></button>
+      </div>
+      <ul id="trackList"></ul>
+    </div>
+  </section>
+
+  <section class="step" aria-labelledby="s2">
+    <div class="step-head"><span class="num" aria-hidden="true">2</span><h2 id="s2">フレーズを聞く</h2></div>
+    <div id="modelArea">
+      <div id="waveWrap"><canvas id="wave"></canvas><div id="waveBusy">音源をつなげています…</div></div>
+      <div class="time-row"><span id="curT">0:00.0</span><span class="hint kbd-only">ダブルクリックで印、印の丸でそこから再生</span><span id="durT">0:00.0</span></div>
+      <div class="transport">
+        <button id="mBack" class="btn" aria-label="3秒戻る"><svg class="ic" aria-hidden="true"><use href="#i-back"/></svg><span>3秒</span></button>
+        <button id="mPlay" class="play" aria-label="再生">
+          <svg class="ic i-play" aria-hidden="true"><use href="#i-play"/></svg>
+          <svg class="ic i-pause" aria-hidden="true"><use href="#i-pause"/></svg>
+          <span class="lbl">再生</span>
+        </button>
+        <button id="mFwd" class="btn" aria-label="3秒進む"><span>3秒</span><svg class="ic" aria-hidden="true"><use href="#i-fwd"/></svg></button>
+        <button id="addMark" class="btn mark-btn"><svg class="ic" aria-hidden="true"><use href="#i-mark"/></svg><span>ここでフレーズを区切る</span></button>
+      </div>
+      <details class="tune">
+        <summary>
+          <span>速さと音量</span>
+          <span class="tune-vals"><span id="rateVal">1.00×</span><span id="volVal">100%</span></span>
+        </summary>
+        <div class="tune-body">
+          <div class="tune-row">
+            <label for="rate">速さ</label>
+            <input type="range" id="rate" min="0.25" max="2" step="0.05" value="1">
+          </div>
+          <div class="chips" id="rateChips">
+            <button data-r="0.5">0.5</button><button data-r="0.75">0.75</button><button data-r="1">1</button>
+            <button data-r="1.25">1.25</button><button data-r="1.5">1.5</button><button data-r="2">2</button>
+          </div>
+          <div class="tune-row">
+            <label for="vol">音量</label>
+            <input type="range" id="vol" min="0" max="300" step="5" value="100">
+            <button class="iconbtn" id="volReset" title="100%に戻す" aria-label="音量を100%に戻す"><svg class="ic" aria-hidden="true"><use href="#i-reset"/></svg></button>
+          </div>
+        </div>
+      </details>
+
+      <div class="phrases-head">
+        <h3>フレーズ</h3>
+        <label class="check"><input type="checkbox" id="loopSeg"><span>選んだフレーズをくり返す</span></label>
+      </div>
+      <ul id="markers"></ul>
+      <p class="empty" id="noMarks">再生しながら「ここでフレーズを区切る」を押すと、フレーズのカードができます。カードに英文やメモを書いておけます。</p>
+    </div>
+    <p class="placeholder">お手本を追加すると、ここに波形とフレーズのカードが並びます。</p>
+  </section>
+
+  <section class="step" aria-labelledby="s3">
+    <div class="step-head"><span class="num" aria-hidden="true">3</span><h2 id="s3">まねして録る</h2></div>
+    <div class="opts">
+      <label class="opt feature">
+        <input type="checkbox" id="syncModel">
+        <span><strong>お手本と同時に録る（シャドーイング）</strong><small>録音を始めると、選んだフレーズからお手本が流れます。イヤホンを使うと、お手本の音が録音に入りません。</small></span>
+      </label>
+      <label class="opt">
+        <input type="checkbox" id="autoPlay" checked>
+        <span><strong>録音を止めたら、すぐ自分の声を聞く</strong></span>
+      </label>
+      <label class="opt select">
+        <span><strong>自分の声の速さ</strong></span>
+        <select id="mineRate">
+          <option value="0.5">0.5×</option><option value="0.75">0.75×</option><option value="1" selected>1×</option>
+          <option value="1.25">1.25×</option><option value="1.5">1.5×</option><option value="2">2×</option>
+        </select>
+      </label>
+    </div>
+
+    <h3 class="sub-head">録った声</h3>
+    <ul id="saved"></ul>
+    <p class="empty" id="noSaved">録音して「保存」すると、ここに残ります。前の自分と聞き比べられます。</p>
+    <label class="check"><input type="checkbox" id="showAllRecs"><span>すべてのプロジェクトの録音を表示</span></label>
+  </section>
+</main>
+
+<div class="recbar" aria-label="録音">
+  <div class="recbar-inner">
+    <button id="recBtn" title="録音開始／停止 (Space)"><span class="dot"></span><span id="recLabel">録音</span></button>
+    <div class="rb-mid">
+      <div id="status" aria-live="polite">ボタンを押して話し、もう一度押すとすぐ再生されます。</div>
+      <div id="meter"><i></i></div>
+    </div>
+    <button id="playMine" class="btn" disabled><svg class="ic" aria-hidden="true"><use href="#i-replay"/></svg><span>もう一度</span></button>
+    <button id="saveBtn" class="btn" disabled><svg class="ic" aria-hidden="true"><use href="#i-save"/></svg><span>保存</span></button>
+  </div>
+</div>
+
+<input type="file" id="fileInput" accept="audio/*,video/*" multiple hidden>
+<div class="toast" id="toast" role="status"></div>
+<div id="modal"><div class="box" role="dialog" aria-modal="true" aria-labelledby="mTitle"><h3 id="mTitle"></h3><p id="mMsg"></p><div class="mbtns" id="mBtns"></div></div></div>
+<script src="mimic.js"></script>
+</body>
+</html>

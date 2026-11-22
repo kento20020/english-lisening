@@ -60,6 +60,19 @@
 - スマホのホーム画面に追加すると、アプリのように開けます。
 - キーボード: Space で録音・停止、R でもう一度聞く、M でお手本、S で保存。
 
+## Mimic（デザイン案）
+
+`mimic/` は、Speak Back（`english-practice2.html`）の機能をそのまま使って、見た目と使い勝手を変えた試作です。`mimic/index.html` で3案を見比べられます。
+
+| 案 | 向いている人 | 特徴 |
+|---|---|---|
+| A Studio（`mimic/studio.html`） | パソコン・iPad でプロジェクトを作り込む人 | 波形を中心に1画面で全部見える。暗めの配色 |
+| B Pocket（`mimic/pocket.html`） | iPhone で片手で練習する人 | 録音ボタンを画面下のまん中に。下のタブで切り替え。ダークモード対応 |
+| C Phrase（`mimic/phrase.html`） | フレーズを順番に身につけたい人 | 印をフレーズのカードに。「用意 → 聞く → まねる」の順に進む |
+
+- 仕組み（`mimic/mimic.js`）は Speak Back からそのままコピーしたものです。新しい機能は Speak Back に追加し、決まった案に取り込みます。
+- データは Speak Back とは別に保存します。Speak Back で「書き出し」したファイルを読み込めます。
+
 ## 対応ブラウザと注意点
 
 | | 録音・再生 | 文字起こし | お手本の読み上げ |
@@ -113,3 +126,4 @@ python3 -m http.server 8000
 | `sw.js` | オフラインでも開けるように、アプリのファイルを端末に保存する |
 | `english-practice2.html` | Speak Back（複数の音声ファイルをプロジェクトにまとめて練習する画面） |
 | `manifest.webmanifest`, `icons/` | ホーム画面に追加したときの名前とアイコン |
+| `mimic/` | Mimic のデザイン案（3案と、見比べるページ） |

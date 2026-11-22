@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mimic Pocket</title>
+<meta name="description" content="Mimic デザイン案 B（Pocket）：iPhone で片手で使う画面">
+<meta name="theme-color" content="#F2F4F8" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0F1424" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="logo.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;500;700;800&display=swap">
+<link rel="stylesheet" href="base.css">
+<link rel="stylesheet" href="pocket.css">
+</head>
+<body data-proj-overlay="1" data-tab="model">
+<nav class="proto-bar" aria-label="デザイン案の切り替え">
+  <a href="./">Mimic デザイン案</a>
+  <a href="studio.html">A Studio</a>
+  <a href="pocket.html" aria-current="page">B Pocket</a>
+  <a href="phrase.html">C Phrase</a>
+</nav>
+
+<header class="appbar">
+  <button id="projListBtn" class="round" aria-expanded="false" aria-controls="projPanel" aria-label="プロジェクト一覧">
+    <svg class="ic" aria-hidden="true"><use href="#i-folder"/></svg>
+  </button>
+  <div class="title">
+    <input id="projName" placeholder="プロジェクト名" title="タップして名前を変更" aria-label="プロジェクト名" autocomplete="off">
+    <span id="saveState" aria-live="polite"></span>
+  </div>
+  <button id="projNewBtn" class="round" aria-label="新しいプロジェクト">
+    <svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg>
+  </button>
+</header>
+
+<div class="scrim" data-close-proj></div>
+<section id="projPanel" class="sheet" aria-label="プロジェクト一覧">
+  <div class="grab" aria-hidden="true"></div>
+  <div class="sheet-head">
+    <h2>プロジェクト</h2>
+    <button class="round small" data-close-proj aria-label="閉じる"><svg class="ic" aria-hidden="true"><use href="#i-x"/></svg></button>
+  </div>
+  <ul id="projList"></ul>
+  <button id="importBtn" class="wide"><svg class="ic" aria-hidden="true"><use href="#i-upload"/></svg><span>ファイルから読み込む</span></button>
+  <p class="fine">「書き出し」で作ったファイルを読み込めます。Speak Back で書き出したファイルも使えます。</p>
+  <input type="file" id="importInput" accept=".json,application/json" hidden>
+</section>
+
+<main class="views">
+  <section class="view" data-view="model" aria-label="お手本">
+    <div id="drop">
+      <span class="drop-icon" aria-hidden="true"><svg class="ic"><use href="#i-file"/></svg></span>
+      <p class="drop-title">お手本の音声を選ぶ</p>
+      <p class="drop-sub">ファイルアプリなどから選べます。いくつか選ぶと、順番につなげて1本にします。</p>
+      <span class="drop-btn">ファイルを選ぶ</span>
+    </div>
+
+    <div id="modelArea">
+      <div class="card wave-card">
+        <div id="waveWrap"><canvas id="wave"></canvas><div id="waveBusy">つなげています…</div></div>
+        <div class="time-row"><span id="curT">0:00.0</span><span id="durT">0:00.0</span></div>
+        <div class="transport">
+          <button id="mBack" class="round lg" aria-label="3秒戻る"><svg class="ic" aria-hidden="true"><use href="#i-back"/></svg><small>3</small></button>
+          <button id="mPlay" class="playbig" aria-label="再生">
+            <svg class="ic i-play" aria-hidden="true"><use href="#i-play"/></svg>
+            <svg class="ic i-pause" aria-hidden="true"><use href="#i-pause"/></svg>
+            <span class="lbl sr-only">再生</span>
+          </button>
+          <button id="mFwd" class="round lg" aria-label="3秒進む"><svg class="ic" aria-hidden="true"><use href="#i-fwd"/></svg><small>3</small></button>
+        </div>
+        <div class="pills">
+          <button id="addMark" class="pill"><svg class="ic" aria-hidden="true"><use href="#i-mark"/></svg><span>印をつける</span></button>
+          <label class="pill toggle"><input type="checkbox" id="loopSeg"><svg class="ic" aria-hidden="true"><use href="#i-loop"/></svg><span>この区間をくり返す</span></label>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="setting-head"><span>お手本の速さ</span><span class="val" id="rateVal">1.00×</span></div>
+        <div class="seg" id="rateChips">
+          <button data-r="0.5">0.5</button><button data-r="0.75">0.75</button><button data-r="1">1</button>
+          <button data-r="1.25">1.25</button><button data-r="1.5">1.5</button><button data-r="2">2</button>
+        </div>
+        <input type="range" id="rate" min="0.25" max="2" step="0.05" value="1" aria-label="お手本の速さ（細かく）">
+        <div class="setting-head vol-head">
+          <span>お手本の音量</span>
+          <span class="vol-right"><span class="val" id="volVal">100%</span><button class="round xs" id="volReset" title="100%に戻す" aria-label="音量を100%に戻す"><svg class="ic" aria-hidden="true"><use href="#i-reset"/></svg></button></span>
+        </div>
+        <input type="range" id="vol" min="0" max="300" step="5" value="100" aria-label="お手本の音量">
+      </div>
+
+      <div class="section-head"><h2>フレーズ</h2></div>
+      <ul id="markers"></ul>
+      <p class="empty" id="noMarks">再生しながら「印をつける」を押すと、そこからがひとつのフレーズになります。</p>
+
+      <div class="section-head">
+        <h2>音源</h2>
+        <button id="addTrackBtn" class="pill small"><svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg><span>追加</span></button>
+      </div>
+      <p class="fine" id="trackCount"></p>
+      <ul id="trackList"></ul>
+    </div>
+  </section>
+
+  <section class="view" data-view="mine" aria-label="自分の声">
+    <div class="card settings">
+      <label class="row">
+        <span>自分の声の速さ</span>
+        <select id="mineRate">
+          <option value="0.5">0.5×</option><option value="0.75">0.75×</option><option value="1" selected>1×</option>
+          <option value="1.25">1.25×</option><option value="1.5">1.5×</option><option value="2">2×</option>
+        </select>
+      </label>
+      <label class="row"><span>録音を止めたら、すぐ再生</span><input type="checkbox" class="sw" id="autoPlay" checked></label>
+      <label class="row"><span>録音と同時にお手本も流す<small>選んでいるフレーズから流れます。イヤホン推奨</small></span><input type="checkbox" class="sw" id="syncModel"></label>
+    </div>
+
+    <div class="section-head"><h2>保存した録音</h2></div>
+    <ul id="saved"></ul>
+    <p class="empty" id="noSaved">録音したあと星のボタンで保存すると、ここに並びます。</p>
+    <label class="row plain"><span>すべてのプロジェクトの録音を表示</span><input type="checkbox" class="sw" id="showAllRecs"></label>
+  </section>
+</main>
+
+<div class="dock">
+  <div class="recstrip">
+    <div class="rs-text">
+      <div id="status" aria-live="polite">まん中のボタンで録音。もう一度押すと、すぐ聞けます。</div>
+      <div id="meter"><i></i></div>
+    </div>
+    <button id="playMine" class="round" disabled><svg class="ic" aria-hidden="true"><use href="#i-replay"/></svg><span class="sr-only">もう一度聞く</span></button>
+    <button id="saveBtn" class="round" disabled><svg class="ic" aria-hidden="true"><use href="#i-save"/></svg><span class="sr-only">保存</span></button>
+  </div>
+  <nav class="tabbar" aria-label="画面の切り替え">
+    <button class="tab" data-tab-btn="model" aria-current="true"><svg class="ic" aria-hidden="true"><use href="#i-wave"/></svg><span>お手本</span></button>
+    <button id="recBtn" title="録音開始／停止"><span class="dot"></span><span id="recLabel">録音</span></button>
+    <button class="tab" data-tab-btn="mine"><svg class="ic" aria-hidden="true"><use href="#i-mic"/></svg><span>自分の声</span></button>
+  </nav>
+</div>
+
+<input type="file" id="fileInput" accept="audio/*,video/*" multiple hidden>
+<div class="toast" id="toast" role="status"></div>
+<div id="modal"><div class="box" role="dialog" aria-modal="true" aria-labelledby="mTitle"><h3 id="mTitle"></h3><p id="mMsg"></p><div class="mbtns" id="mBtns"></div></div></div>
+<script src="mimic.js"></script>
+<script>
+  // 下のタブで「お手本」と「自分の声」を切り替える（見た目だけの仕組み）
+  document.querySelectorAll('[data-tab-btn]').forEach((b) => b.addEventListener('click', () => {
+    document.body.dataset.tab = b.dataset.tabBtn;
+    document.querySelectorAll('[data-tab-btn]').forEach((x) => x.toggleAttribute('aria-current', x === b));
+    window.scrollTo(0, 0);
+    window.dispatchEvent(new Event('resize'));
+  }));
+</script>
+</body>
+</html>

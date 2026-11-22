@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mimic デザイン案</title>
+<meta name="description" content="Speak Back の機能をそのまま使って、見た目と使い勝手を変えた3つのデザイン案">
+<meta name="theme-color" content="#F3F4F7">
+<link rel="icon" href="logo.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
+<style>
+  :root {
+    --bg: #F3F4F7;
+    --surface: #FFFFFF;
+    --ink: #161A26;
+    --muted: #5E6578;
+    --line: #DDE1EA;
+    --blue: #3D6FF2;
+    --pink: #E8476A;
+    color-scheme: light;
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Zen Kaku Gothic New", "Hiragino Sans", system-ui, sans-serif;
+    font-size: 16px;
+    line-height: 1.75;
+    -webkit-font-smoothing: antialiased;
+  }
+  .page { max-width: 1080px; margin: 0 auto; padding: 32px 20px 64px; }
+
+  .hero { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 4px 18px; }
+  .hero img { grid-row: span 2; }
+  .hero h1 { margin: 0; font-size: 34px; line-height: 1.2; letter-spacing: -.01em; }
+  .hero p { margin: 0; color: var(--muted); }
+  .lead { max-width: 46em; margin: 22px 0 0; }
+  .lead strong { font-weight: 700; }
+
+  .designs { display: grid; gap: 22px; margin-top: 34px; }
+  .design {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr);
+    gap: 28px;
+    align-items: center;
+    padding: 24px;
+    border-radius: 22px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+  }
+  .shots { display: flex; align-items: flex-end; gap: 12px; min-width: 0; }
+  .shots img { display: block; max-width: 100%; height: auto; border-radius: 12px; border: 1px solid var(--line); background: var(--bg); }
+  .shots .phone { width: 34%; flex: none; border-radius: 16px; }
+  .shots .wide { flex: 1; min-width: 0; }
+  .shots .phone + .phone { width: 34%; }
+  .letter {
+    display: inline-grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    margin-right: 10px;
+    border-radius: 8px;
+    background: var(--ink);
+    color: var(--bg);
+    font-size: 15px;
+    font-weight: 700;
+    vertical-align: 3px;
+  }
+  .design h2 { margin: 0; font-size: 24px; line-height: 1.3; }
+  .who { margin: 6px 0 0; color: var(--muted); }
+  .design ul { margin: 14px 0 0; padding-left: 1.2em; }
+  .design li + li { margin-top: 4px; }
+  .open {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 18px;
+    padding: 10px 20px;
+    border-radius: 999px;
+    background: var(--ink);
+    color: var(--bg);
+    font-weight: 700;
+    text-decoration: none;
+  }
+  .open:hover { background: #2A3042; }
+  .open svg { width: 16px; height: 16px; }
+
+  .names { margin-top: 48px; }
+  .names h2, .notes h2 { margin: 0; font-size: 22px; }
+  .names > p { margin: 6px 0 0; color: var(--muted); }
+  .name-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; margin-top: 16px; }
+  .name {
+    padding: 16px 18px;
+    border-radius: 16px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+  }
+  .name.pick { border: 2px solid var(--ink); }
+  .name b { display: block; font-size: 22px; line-height: 1.3; }
+  .name .yomi { font-size: 13px; color: var(--muted); }
+  .name p { margin: 8px 0 0; font-size: 14px; }
+  .tag { display: inline-block; margin-left: 6px; padding: 0 8px; border-radius: 999px; background: var(--ink); color: var(--bg); font-size: 11px; font-weight: 700; vertical-align: 4px; }
+
+  .notes { margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--line); }
+  .notes ul { margin: 10px 0 0; padding-left: 1.2em; color: var(--muted); font-size: 15px; }
+
+  @media (max-width: 820px) {
+    .design { grid-template-columns: minmax(0, 1fr); padding: 18px; gap: 18px; }
+    .hero h1 { font-size: 28px; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="hero">
+    <img src="logo.svg" alt="" width="56" height="56">
+    <h1>Mimic デザイン案</h1>
+    <p>お手本を聞いて、まねして、自分の声と聞き比べる</p>
+  </header>
+
+  <p class="lead">
+    Speak Back の機能を<strong>そのまま</strong>使って、見た目と使い勝手だけを変えた3つの案です。
+    3案とも同じデータを使うので、上のバーで切り替えながら同じプロジェクトで比べられます。
+    データは Speak Back とは別に保存されます。Speak Back のプロジェクトは「書き出し」したファイルを読み込めば使えます。
+  </p>
+
+  <div class="designs">
+    <article class="design">
+      <div class="shots">
+        <img class="phone" src="shots/studio-phone.jpg" alt="Studio のスマホ表示" width="390" height="844" loading="lazy">
+        <img class="wide" src="shots/studio-desktop.jpg" alt="Studio のパソコン表示" width="1366" height="860" loading="lazy">
+      </div>
+      <div>
+        <h2><span class="letter">A</span>Studio</h2>
+        <p class="who">パソコンや iPad で、プロジェクトをたくさん作り込む人に</p>
+        <ul>
+          <li>波形を大きく真ん中に。音源・設定は左、保存した録音は右にまとめて、1画面で全部見える</li>
+          <li>録音ボタンは画面下に固定。どこまでスクロールしても押せる</li>
+          <li>暗めの配色で、長い時間の作業でも目が疲れにくい</li>
+        </ul>
+        <a class="open" href="studio.html">Studio を開く <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+      </div>
+    </article>
+
+    <article class="design">
+      <div class="shots">
+        <img class="phone" src="shots/pocket-phone.jpg" alt="Pocket のスマホ表示" width="390" height="844" loading="lazy">
+        <img class="phone" src="shots/pocket-phone-dark.jpg" alt="Pocket のスマホ表示（ダークモード）" width="390" height="844" loading="lazy">
+      </div>
+      <div>
+        <h2><span class="letter">B</span>Pocket</h2>
+        <p class="who">iPhone で、電車の中などで片手で練習する人に</p>
+        <ul>
+          <li>録音ボタンを親指の届く画面下のまん中に。下のタブで「お手本」と「自分の声」を切り替える</li>
+          <li>プロジェクトの一覧や確認は、iPhone のように下から出るシートで</li>
+          <li>iPhone のダークモードに合わせて、自動で暗い配色になる</li>
+        </ul>
+        <a class="open" href="pocket.html">Pocket を開く <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+      </div>
+    </article>
+
+    <article class="design">
+      <div class="shots">
+        <img class="phone" src="shots/phrase-phone.jpg" alt="Phrase のスマホ表示" width="390" height="844" loading="lazy">
+        <img class="wide" src="shots/phrase-desktop.jpg" alt="Phrase のパソコン表示" width="1366" height="860" loading="lazy">
+      </div>
+      <div>
+        <h2><span class="letter">C</span>Phrase</h2>
+        <p class="who">ひとつずつ順番に、フレーズを身につけたい人に</p>
+        <ul>
+          <li>「お手本を用意する → フレーズを聞く → まねして録る」の順に、上から進む</li>
+          <li>印をフレーズのカードとして大きく表示。練習中のフレーズに蛍光ペンの線</li>
+          <li>シャドーイング（お手本と同時に録る）を、わかりやすいスイッチとして前に出した</li>
+        </ul>
+        <a class="open" href="phrase.html">Phrase を開く <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+      </div>
+    </article>
+  </div>
+
+  <section class="names" aria-labelledby="namesTitle">
+    <h2 id="namesTitle">名前の候補</h2>
+    <p>「まねする」「もう一度話す」に関係する名前です。正式に決める前に、商標や App Store での重なりを確認してください。</p>
+    <div class="name-grid">
+      <div class="name pick">
+        <b>Mimic<span class="tag">仮</span></b>
+        <span class="yomi">ミミック</span>
+        <p>まねる。日本語の「ミミ（耳）」が入っていて、聞いてまねるアプリだと伝わりやすい。</p>
+      </div>
+      <div class="name">
+        <b>Respeak</b>
+        <span class="yomi">リスピーク</span>
+        <p>もう一度話す。何度も言い直す使い方そのものを表す。</p>
+      </div>
+      <div class="name">
+        <b>Say Again</b>
+        <span class="yomi">セイ・アゲイン</span>
+        <p>「もう一回言って」。会話でもよく使う英語なので、英語学習のアプリらしい。</p>
+      </div>
+      <div class="name">
+        <b>Echoback</b>
+        <span class="yomi">エコーバック</span>
+        <p>話した声が、こだまのように返ってくる。</p>
+      </div>
+      <div class="name">
+        <b>Shadow</b>
+        <span class="yomi">シャドウ</span>
+        <p>シャドーイングから。英語を学んでいる人には意味がすぐ通じる。</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="notes" aria-labelledby="notesTitle">
+    <h2 id="notesTitle">この試作について</h2>
+    <ul>
+      <li>新しい機能は Speak Back に追加していきます。ここは見た目と使い勝手を考える場所です。</li>
+      <li>仕組み（mimic.js）は Speak Back からそのままコピーしたものです。Speak Back に機能が増えたら、選んだ案に取り込みます。</li>
+      <li>データはこのブラウザの中だけに保存されます。</li>
+    </ul>
+  </section>
+</div>
+</body>
+</html>

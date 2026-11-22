@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mimic Studio</title>
+<meta name="description" content="Mimic デザイン案 A（Studio）：波形を中心にした作業画面">
+<meta name="theme-color" content="#141B2E">
+<link rel="icon" href="logo.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="base.css">
+<link rel="stylesheet" href="studio.css">
+</head>
+<body data-proj-overlay="1">
+<nav class="proto-bar" aria-label="デザイン案の切り替え">
+  <a href="./">Mimic デザイン案</a>
+  <a href="studio.html" aria-current="page">A Studio</a>
+  <a href="pocket.html">B Pocket</a>
+  <a href="phrase.html">C Phrase</a>
+</nav>
+
+<div class="app">
+  <header class="topbar">
+    <a class="brand" href="./" aria-label="Mimic デザイン案の一覧へ">
+      <img src="logo.svg" alt="" width="28" height="28">
+      <span>Mimic</span>
+    </a>
+    <div class="proj">
+      <svg class="ic" aria-hidden="true"><use href="#i-folder"/></svg>
+      <input id="projName" placeholder="プロジェクト名" title="クリックして名前を変更" aria-label="プロジェクト名" autocomplete="off">
+      <span id="saveState" aria-live="polite"></span>
+    </div>
+    <div class="top-actions">
+      <button id="projListBtn" class="tbtn" aria-expanded="false" aria-controls="projPanel">
+        <svg class="ic" aria-hidden="true"><use href="#i-list"/></svg><span>プロジェクト</span><svg class="ic chev" aria-hidden="true"><use href="#i-chev"/></svg>
+      </button>
+      <button id="projNewBtn" class="tbtn">
+        <svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg><span>新規</span>
+      </button>
+    </div>
+
+    <section id="projPanel" aria-label="プロジェクト一覧">
+      <div class="panel-head">
+        <h2>プロジェクト</h2>
+        <button class="iconbtn" data-close-proj aria-label="閉じる"><svg class="ic" aria-hidden="true"><use href="#i-x"/></svg></button>
+      </div>
+      <ul id="projList"></ul>
+      <div class="panel-foot">
+        <button id="importBtn" class="tbtn"><svg class="ic" aria-hidden="true"><use href="#i-upload"/></svg><span>プロジェクトファイルを読み込む</span></button>
+        <p>「書き出し」で作ったファイルを読み込めます。Speak Back で書き出したファイルも使えます。</p>
+      </div>
+      <input type="file" id="importInput" accept=".json,application/json" hidden>
+    </section>
+  </header>
+
+  <aside class="side">
+    <section class="block">
+      <div class="block-head">
+        <h2>音源</h2>
+        <button id="addTrackBtn" class="tbtn small"><svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg><span>追加</span></button>
+      </div>
+      <p class="sub" id="trackCount"></p>
+      <ul id="trackList"></ul>
+    </section>
+
+    <section class="block">
+      <div class="block-head"><h2>自分の声の設定</h2></div>
+      <label class="field">
+        <span>再生の速さ</span>
+        <select id="mineRate">
+          <option value="0.5">0.5×</option><option value="0.75">0.75×</option><option value="1" selected>1×</option>
+          <option value="1.25">1.25×</option><option value="1.5">1.5×</option><option value="2">2×</option>
+        </select>
+      </label>
+      <label class="switch"><input type="checkbox" id="autoPlay" checked><span>録音を止めたら、すぐ再生する</span></label>
+      <label class="switch"><input type="checkbox" id="syncModel"><span>録音と同時にお手本も流す（選んでいる印から）</span></label>
+    </section>
+
+    <section class="block keys kbd-only">
+      <div class="block-head"><h2>キーボード</h2></div>
+      <dl>
+        <div><dt><kbd>Space</kbd></dt><dd>録音／停止</dd></div>
+        <div><dt><kbd>P</kbd></dt><dd>自分の声を再生</dd></div>
+        <div><dt><kbd>S</kbd></dt><dd>保存</dd></div>
+        <div><dt><kbd>Enter</kbd></dt><dd>お手本 再生／一時停止</dd></div>
+        <div><dt><kbd>M</kbd> <kbd>N</kbd></dt><dd>印をつける／名前</dd></div>
+        <div><dt><kbd>1</kbd>〜<kbd>9</kbd></dt><dd>その印から再生</dd></div>
+        <div><dt><kbd>←</kbd> <kbd>→</kbd></dt><dd>3秒移動</dd></div>
+        <div><dt><kbd>,</kbd> <kbd>.</kbd></dt><dd>速度</dd></div>
+        <div><dt><kbd>↑</kbd> <kbd>↓</kbd></dt><dd>音量</dd></div>
+        <div><dt><kbd>[</kbd> <kbd>]</kbd></dt><dd>前／次の音源</dd></div>
+      </dl>
+    </section>
+  </aside>
+
+  <main class="main">
+    <div id="drop">
+      <img src="logo.svg" alt="" width="56" height="56">
+      <p class="drop-title">お手本の音声をここにドロップ</p>
+      <p class="drop-sub">または <u>クリックしてファイルを選ぶ</u>。複数のファイルをまとめて選ぶと、順番につなげて1本にします。</p>
+    </div>
+
+    <section id="modelArea" aria-label="お手本">
+      <div id="waveWrap"><canvas id="wave"></canvas><div id="waveBusy">音源をつなげています…</div></div>
+      <div class="time-row">
+        <span id="curT">0:00.0</span>
+        <span class="hint"><span class="kbd-only">クリックで移動、ダブルクリックで印、印の丸でそこから再生</span><span class="touch-only">タップで移動、印の丸でそこから再生</span></span>
+        <span id="durT">0:00.0</span>
+      </div>
+
+      <div class="transport">
+        <button id="mBack" class="tbtn" title="3秒戻る"><svg class="ic" aria-hidden="true"><use href="#i-back"/></svg><span>3秒</span><kbd>←</kbd></button>
+        <button id="mPlay" class="play" aria-label="再生">
+          <svg class="ic i-play" aria-hidden="true"><use href="#i-play"/></svg>
+          <svg class="ic i-pause" aria-hidden="true"><use href="#i-pause"/></svg>
+          <span class="lbl">再生</span><kbd>Enter</kbd>
+        </button>
+        <button id="mFwd" class="tbtn" title="3秒進む"><span>3秒</span><svg class="ic" aria-hidden="true"><use href="#i-fwd"/></svg><kbd>→</kbd></button>
+        <span class="sep" aria-hidden="true"></span>
+        <button id="addMark" class="tbtn"><svg class="ic" aria-hidden="true"><use href="#i-mark"/></svg><span>印をつける</span><kbd>M</kbd></button>
+        <label class="switch inline"><input type="checkbox" id="loopSeg"><span>印から次の印までくり返す</span></label>
+      </div>
+
+      <div class="mixer">
+        <div class="knob">
+          <label for="rate"><svg class="ic" aria-hidden="true"><use href="#i-speed"/></svg>速度</label>
+          <input type="range" id="rate" min="0.25" max="2" step="0.05" value="1">
+          <span class="val" id="rateVal">1.00×</span>
+          <span class="chips" id="rateChips">
+            <button data-r="0.5">0.5</button><button data-r="0.75">0.75</button><button data-r="1">1</button>
+            <button data-r="1.25">1.25</button><button data-r="1.5">1.5</button><button data-r="2">2</button>
+          </span>
+        </div>
+        <div class="knob">
+          <label for="vol"><svg class="ic" aria-hidden="true"><use href="#i-vol"/></svg>音量</label>
+          <input type="range" id="vol" min="0" max="300" step="5" value="100">
+          <span class="val" id="volVal">100%</span>
+          <button class="iconbtn" id="volReset" title="100%に戻す" aria-label="音量を100%に戻す"><svg class="ic" aria-hidden="true"><use href="#i-reset"/></svg></button>
+        </div>
+      </div>
+
+      <div class="block-head marks-head"><h2>印</h2></div>
+      <ul id="markers"></ul>
+      <p class="empty" id="noMarks">まだ印はありません。再生しながら「印をつける」を押すと、その位置に印がつきます。</p>
+    </section>
+  </main>
+
+  <aside class="saved-col">
+    <div class="block-head"><h2>保存した録音</h2></div>
+    <ul id="saved"></ul>
+    <p class="empty" id="noSaved">保存した録音は、このプロジェクトの中に並びます。</p>
+    <label class="switch"><input type="checkbox" id="showAllRecs"><span>すべてのプロジェクトの録音を表示</span></label>
+  </aside>
+</div>
+
+<footer class="dock" aria-label="自分の声">
+  <button id="recBtn" title="録音開始／停止 (Space)"><span class="dot"></span><span id="recLabel">録音</span></button>
+  <div class="dock-mid">
+    <div id="status" aria-live="polite">ボタンを押して話し、もう一度押すとすぐ再生されます。</div>
+    <div id="meter"><i></i></div>
+  </div>
+  <div class="dock-actions">
+    <button id="playMine" class="tbtn" disabled><svg class="ic" aria-hidden="true"><use href="#i-replay"/></svg><span>もう一度聞く</span><kbd>P</kbd></button>
+    <button id="saveBtn" class="tbtn" disabled><svg class="ic" aria-hidden="true"><use href="#i-save"/></svg><span>保存</span><kbd>S</kbd></button>
+  </div>
+</footer>
+
+<input type="file" id="fileInput" accept="audio/*,video/*" multiple hidden>
+<div class="toast" id="toast" role="status"></div>
+<div id="modal"><div class="box" role="dialog" aria-modal="true" aria-labelledby="mTitle"><h3 id="mTitle"></h3><p id="mMsg"></p><div class="mbtns" id="mBtns"></div></div></div>
+<script src="mimic.js"></script>
+</body>
+</html>
