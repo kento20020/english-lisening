@@ -110,6 +110,7 @@
   const $ = (s) => document.querySelector(s);
   const el = {
     inAppNotice: $('#inAppNotice'),
+    offlineNotice: $('#offlineNotice'),
     orb: $('#orb'),
     orbLabel: $('#orbLabel'),
     ring: $('.ring'),
@@ -890,6 +891,7 @@
     flushOwner: null,
     orphanAt: 0,
     broken: '',
+    offline: false,
     starts: [],
   };
 
@@ -898,6 +900,7 @@
       committed: '',
       live: '',
       pending: srUsable(),
+      offline: sr.offline,
       discarded: false,
       clip: null,
     };
@@ -914,7 +917,7 @@
 
   function utterText(u) { return tidyText(`${u.committed} ${u.live}`); }
 
-  function srUsable() { return !!SR && settings.transcribe && !sr.broken; }
+  function srUsable() { return !!SR && settings.transcribe && !sr.broken && !sr.offline; }
 
   function srListen() {
     // 自動モードの声待ち中も認識を動かしておく（話し始めを取りこぼさないため）
@@ -999,7 +1002,8 @@
       if (code === 'not-allowed' || code === 'service-not-allowed') {
         srBreak('文字起こしが許可されていません。ブラウザの設定で音声認識を許可すると使えます。');
       } else if (code === 'network') {
-        srBreak('文字起こしのサービスに接続できませんでした。インターネット接続を確認してください（録音と再生はそのまま使えます）。');
+        if (!navigator.onLine) srGoOffline();
+        else srBreak('文字起こしのサービスに接続できませんでした。インターネット接続を確認してください（録音と再生はそのまま使えます）。');
       } else if (code === 'language-not-supported') {
         srBreak('この英語の種類は文字起こしに対応していません。設定の「英語の種類」を変えてください。');
       } else if (code === 'audio-capture') {
@@ -1042,6 +1046,48 @@
     renderPractice();
     toast('文字起こしをオフにしました');
   }
+
+  // オフラインの間だけ止める（つながったら自動で戻す）
+  function srGoOffline() {
+    sr.offline = true;
+    sr.want = false;
+    if (sr.inst && sr.active) { try { sr.inst.abort(); } catch (_) { /* noop */ } }
+    for (const c of session) {
+      if (c.utter.pending) {
+        c.utter.pending = false;
+        c.utter.offline = true;
+        onUtterUpdate(c.utter);
+      }
+    }
+    if (rec) { rec.utter.pending = false; rec.utter.offline = true; }
+    renderSettings();
+    renderPractice();
+  }
+
+  function renderOnline() {
+    el.offlineNotice.hidden = navigator.onLine;
+  }
+
+  window.addEventListener('offline', () => {
+    renderOnline();
+    toast('オフラインになりました。録音と再生はそのまま使えます');
+  });
+
+  window.addEventListener('online', () => {
+    renderOnline();
+    if (sr.offline) {
+      sr.offline = false;
+      renderSettings();
+      renderPractice();
+      if (state === 'listening') srListen();
+      else if (state === 'recording' && rec) {
+        rec.utter.offline = false;
+        rec.utter.pending = true;
+        srBeginUtterance(rec.utter);
+      }
+    }
+    toast('オンラインに戻りました');
+  });
 
   function srRestart() {
     // 言語を変えたときに作り直す
@@ -1094,13 +1140,16 @@
   function normLang(l) { return (l || '').replace('_', '-').toLowerCase(); }
 
   function pickVoice() {
+    const offline = !navigator.onLine;
     if (settings.voice) {
       const v = voices.find((x) => x.voiceURI === settings.voice);
-      if (v) return v;
+      // オフラインでは、ネット経由の声は使えないので端末内の声に切り替える
+      if (v && (!offline || v.localService)) return v;
     }
     const lang = normLang(settings.lang);
-    const cands = voices.filter((v) => normLang(v.lang) === lang);
-    const pool = cands.length ? cands : voices;
+    const usable = offline ? voices.filter((v) => v.localService) : voices;
+    const cands = usable.filter((v) => normLang(v.lang) === lang);
+    const pool = cands.length ? cands : usable;
     let best = null;
     let bestScore = -1;
     for (const v of pool) {
@@ -1417,6 +1466,7 @@
     if (!SR) return { kind: 'unsupported' };
     if (!settings.transcribe && !clip.utter.pending) return { kind: 'off' };
     if (sr.broken) return { kind: 'broken' };
+    if ((sr.offline || clip.utter.offline) && !clip.utter.pending) return { kind: 'offline' };
     if (clip.utter.pending) return { kind: 'pending' };
     return { kind: 'empty' };
   }
@@ -1526,6 +1576,11 @@
       case 'broken':
         fillMessage(node, '文字起こしは使えない状態です。声の再生はそのまま使えます。');
         break;
+      case 'offline':
+        fillMessage(node, withTarget
+          ? 'オフラインのため、どの単語が伝わったかは確認できません。お手本と聞き比べてみましょう。'
+          : 'オフラインのため、文字起こしはお休みしています。声の再生はそのまま使えます。');
+        break;
       case 'pending':
         fillMessage(node, '聞き取っています…');
         break;
@@ -1630,6 +1685,7 @@
   function clipPlaceholder(u) {
     if (u.pending) return '聞き取っています…';
     if (!SR || !settings.transcribe) return '文字起こしなし';
+    if (sr.offline || u.offline) return '文字起こしなし（オフライン）';
     return '聞き取れませんでした';
   }
 
@@ -1754,6 +1810,8 @@
       el.transcribeHelp.textContent = 'このブラウザは文字起こしに対応していません。Chrome、Edge、Safari で使えます。';
     } else if (sr.broken) {
       el.transcribeHelp.textContent = sr.broken;
+    } else if (sr.offline) {
+      el.transcribeHelp.textContent = 'オフラインのため、いまは使えません。インターネットにつながると自動で戻ります。';
     } else if (isMobile) {
       el.transcribeHelp.textContent = '聞き取られた英文が表示され、練習する英文のどの単語が伝わったか確認できます。スマホでは録音とマイクを取り合って、声に反応しなくなることがあります。その場合はオフにしてください。';
     } else {
@@ -1960,6 +2018,14 @@
   // 起動
   // ============================================================
   el.inAppNotice.hidden = !inAppBrowser;
+  renderOnline();
+
+  // オフラインでも開けるようにする
+  if ('serviceWorker' in navigator && window.isSecureContext) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('sw.js').catch((err) => console.warn('service worker', err));
+    });
+  }
   renderMode();
   renderChips();
   renderSettings();
