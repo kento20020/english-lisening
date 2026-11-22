@@ -111,4 +111,5 @@ python3 -m http.server 8000
 | `app.js` | 録音・再生・文字起こし・保存などの処理 |
 | `recorder-worklet.js` | マイク入力を受け取る AudioWorklet |
 | `sw.js` | オフラインでも開けるように、アプリのファイルを端末に保存する |
+| `english-practice2.html` | Speak Back（複数の音声ファイルをプロジェクトにまとめて練習する画面） |
 | `manifest.webmanifest`, `icons/` | ホーム画面に追加したときの名前とアイコン |

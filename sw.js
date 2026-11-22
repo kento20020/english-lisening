@@ -1,12 +1,13 @@
 // オフラインでも開けるように、アプリのファイルを端末に保存しておく。
 // つながっているときは毎回最新を取りに行き（更新がすぐ届く）、つながらないときだけ保存分を使う。
-const VERSION = 'kodama-v1';
+const VERSION = 'kodama-v2';
 const SHELL = [
   './',
   './index.html',
   './style.css',
   './app.js',
   './recorder-worklet.js',
+  './english-practice2.html',
   './manifest.webmanifest',
   './icons/icon.svg',
   './icons/icon-192.png',
@@ -57,7 +58,9 @@ async function networkFirst(req) {
   } catch (_) {
     const cached = await cache.match(req, { ignoreSearch: true });
     if (cached) return cached;
-    if (req.mode === 'navigate') {
+    // トップページへの移動だけ、保存してあるトップページで代用する
+    const path = new URL(req.url).pathname;
+    if (req.mode === 'navigate' && (path.endsWith('/') || path.endsWith('/index.html'))) {
       const shell = (await cache.match('./index.html')) || (await cache.match('./'));
       if (shell) return shell;
     }
