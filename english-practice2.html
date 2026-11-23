@@ -60,6 +60,9 @@
   .btns{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
   #meter{height:6px;background:var(--line);border-radius:3px;overflow:hidden;margin:10px 0 12px}
   #meter i{display:block;height:100%;width:0;background:var(--acc);transition:width .05s}
+  #mineArea{display:none;margin-top:16px}
+  #mineWaveWrap{position:relative;height:84px;background:#fdf7f6;border:1px solid var(--line);border-radius:10px;overflow:hidden;cursor:pointer;user-select:none}
+  #mineWave{width:100%;height:100%;display:block}
   label.chk{font-size:13px;color:var(--muted);display:flex;gap:6px;align-items:center;margin-top:8px}
 
   /* Model */
@@ -167,6 +170,10 @@
         <label class="chk"><input type="checkbox" id="autoPlay" checked> 録音停止したら自動で再生</label>
         <label class="chk"><input type="checkbox" id="syncModel"> 録音開始と同時にお手本を再生（選択中の印から）</label>
       </div>
+    </div>
+    <div id="mineArea">
+      <div id="mineWaveWrap"><canvas id="mineWave"></canvas></div>
+      <div class="time-row"><span id="mineCur">0:00.0</span><span id="mineLabel"></span><span id="mineDur">0:00.0</span></div>
     </div>
   </section>
 
@@ -453,23 +460,79 @@ async function toggleRec(){
   timerId=setInterval(()=>{ $('status').innerHTML='● 録音中 <span id="timer">'+fmt((performance.now()-recStart)/1000)+'</span>'; },100);
   if($('syncModel').checked && modelReady) playFrom(selectedMarkTime());
 }
-function onRecStop(){
+async function onRecStop(){
   clearInterval(timerId);
   $('recBtn').classList.remove('recording'); $('recLabel').textContent='録音';
   if($('syncModel').checked && modelReady) model.pause();
   lastBlob=new Blob(chunks,{type:recorder.mimeType||'audio/webm'});
   const dur=(performance.now()-recStart)/1000;
-  if(lastUrl) URL.revokeObjectURL(lastUrl);
-  lastUrl=URL.createObjectURL(lastBlob); mine.src=lastUrl;
   $('playMine').disabled=false; $('saveBtn').disabled=false;
   $('status').textContent='録音しました（'+fmt(dur)+'）';
+  await loadMine(lastBlob);
   if($('autoPlay').checked) playMine();
 }
-function playMine(){
+function playMine(from){
   if(!lastUrl) return; model.pause();
   const r=+$('mineRate').value; mine.defaultPlaybackRate=r; mine.playbackRate=r;
-  mine.currentTime=0; mine.play(); $('status').textContent='▶ 再生中…'+(r!==1?'（'+r+'×）':'');
+  mine.currentTime=typeof from==='number'?from:0; mine.play();
+  $('status').textContent='▶ 再生中…'+(r!==1?'（'+r+'×）':'');
 }
+
+/* 自分の声の波形。録音（webm）はそのままだと長さが分からず途中から再生しにくいので、
+   デコードしてWAVに直したものを再生する（保存するのは元の録音） */
+let mineReady=false, minePeaks=null, mineDur=0, mineHover=null;
+function writeWavHeader(v,total,sr){
+  const w=(o,s)=>{ for(let i=0;i<s.length;i++) v.setUint8(o+i,s.charCodeAt(i)); };
+  w(0,'RIFF'); v.setUint32(4,36+total*2,true); w(8,'WAVE'); w(12,'fmt '); v.setUint32(16,16,true); v.setUint16(20,1,true); v.setUint16(22,1,true);
+  v.setUint32(24,sr,true); v.setUint32(28,sr*2,true); v.setUint16(32,2,true); v.setUint16(34,16,true); w(36,'data'); v.setUint32(40,total*2,true);
+}
+function encodeWav(d,sr){
+  const buf=new ArrayBuffer(44+d.length*2); writeWavHeader(new DataView(buf),d.length,sr);
+  const pcm=new Int16Array(buf,44,d.length);
+  for(let i=0;i<d.length;i++){ let s=d[i]; if(s>1)s=1; else if(s<-1)s=-1; pcm[i]=s*32767; }
+  return buf;
+}
+async function loadMine(blob,label){
+  mine.pause(); mineReady=false; minePeaks=null; mineDur=0;
+  let url;
+  try{
+    const buf=await getCtx().decodeAudioData(await blob.arrayBuffer());
+    const n=buf.length, C=buf.numberOfChannels, d=new Float32Array(n);
+    for(let c=0;c<C;c++){ const ch=buf.getChannelData(c); for(let i=0;i<n;i++) d[i]+=ch[i]/C; }
+    const N=600, pk=new Float32Array(N), sc=N/n; let mx=0;
+    for(let i=0;i<n;i++){ const b=(i*sc)|0, a=d[i]<0?-d[i]:d[i]; if(a>pk[b]) pk[b]=a; }
+    for(const x of pk) if(x>mx) mx=x; mx=mx||1; for(let i=0;i<N;i++) pk[i]/=mx;
+    minePeaks=pk; mineDur=buf.duration;
+    url=URL.createObjectURL(new Blob([encodeWav(d,buf.sampleRate)],{type:'audio/wav'}));
+  }catch(e){ url=URL.createObjectURL(blob); } // デコードできなければ波形なしでそのまま再生
+  if(lastUrl) URL.revokeObjectURL(lastUrl);
+  lastUrl=url; mine.src=url; mineReady=true;
+  $('mineArea').style.display='block';
+  $('mineDur').textContent=fmt(mineDur); $('mineCur').textContent=fmt(0);
+  $('mineLabel').textContent=(label?label+' ・ ':'')+'波形をクリックすると、そこから再生';
+  drawMineWave();
+}
+const mineLen = () => mineDur || (isFinite(mine.duration)?mine.duration:0);
+function drawMineWave(){
+  const c=$('mineWave'), g=c.getContext('2d'), dpr=window.devicePixelRatio||1, W=c.clientWidth, H=c.clientHeight;
+  if(!W) return;
+  if(c.width!==Math.round(W*dpr)||c.height!==Math.round(H*dpr)){ c.width=Math.round(W*dpr); c.height=Math.round(H*dpr); }
+  g.setTransform(dpr,0,0,dpr,0,0); g.clearRect(0,0,W,H);
+  const d=mineLen(), pos=d?Math.min(1,mine.currentTime/d):0;
+  if(minePeaks){
+    const n=minePeaks.length, bw=W/n;
+    for(let i=0;i<n;i++){ const h=Math.max(1,minePeaks[i]*H*0.8); g.fillStyle=(i/n<pos)?'#e0483e':'#f1c5c1'; g.fillRect(i*bw,(H-h)/2,Math.max(1,bw-0.3),h); }
+  }else{ g.fillStyle='#f1c5c1'; g.fillRect(0,H/2-1,W,2); g.fillStyle='#e0483e'; g.fillRect(0,H/2-1,W*pos,2); }
+  if(mineHover!=null){ g.fillStyle='rgba(31,35,40,.25)'; g.fillRect(mineHover-0.5,0,1,H); }
+  if(d){ g.fillStyle='#1f2328'; g.fillRect(pos*W-1,0,2,H); }
+}
+const mineTimeAt = cx => { const r=$('mineWave').getBoundingClientRect(); return Math.max(0,Math.min(1,(cx-r.left)/r.width))*mineLen(); };
+$('mineWaveWrap').addEventListener('click',e=>{ if(mineReady&&mineLen()) playMine(mineTimeAt(e.clientX)); });
+$('mineWaveWrap').addEventListener('mousemove',e=>{
+  const r=$('mineWave').getBoundingClientRect(); mineHover=e.clientX-r.left;
+  $('mineWaveWrap').title=mineLen()?fmt(mineTimeAt(e.clientX))+' から再生':'';
+});
+$('mineWaveWrap').addEventListener('mouseleave',()=>{ mineHover=null; });
 mine.onended=()=>{ $('status').textContent='再生終了。もう一度録るなら Space / 録音ボタン'; };
 $('mineRate').onchange=()=>{ mine.playbackRate=+$('mineRate').value; };
 $('recBtn').onclick=toggleRec;
@@ -501,7 +564,16 @@ async function renderSaved(){
     const ti=r.projectId===cur.id&&cur.tracks.length>1?cur.tracks.findIndex(t=>t.id===r.trackId):-1;
     li.innerHTML=(showAll?`<span class="ptag">${esc(projs[r.projectId]||'プロジェクトなし')}</span>`:'')+
       (ti>=0?`<span class="ptag" style="background:${tint(colorOf(ti)[0],.16)}">🎧 ${esc(baseName(cur.tracks[ti].name))}</span>`:'')+
-      `<input class="nm"><audio controls src="${url}"></audio><a download title="ファイルとしてダウンロード" style="text-decoration:none">⬇</a><button class="x" title="削除">✕</button>`;
+      `<input class="nm"><audio controls src="${url}"></audio><button class="small op" title="上の「自分の声」の波形で開いて、好きな所から再生">〰 波形で開く</button><a download title="ファイルとしてダウンロード" style="text-decoration:none">⬇</a><button class="x" title="削除">✕</button>`;
+    li.querySelector('.op').onclick=async()=>{
+      if(!$('saveBtn').disabled){
+        const ok=await ask('保存していない録音があります','開くと、いま録った（まだ保存していない）録音は消えます。',[['開く',true,'primary'],['キャンセル',false]]);
+        if(!ok) return;
+      }
+      lastBlob=r.blob; $('saveBtn').disabled=true; $('playMine').disabled=false;
+      await loadMine(r.blob,'保存した録音「'+nm.value+'」');
+      $('mineArea').scrollIntoView({behavior:'smooth',block:'center'}); playMine();
+    };
     const nm=li.querySelector('.nm'); nm.value=r.name;
     const a=li.querySelector('a'); a.href=url;
     const setDl=()=>a.download=(nm.value||'recording').replace(/[\\/:*?"<>|]/g,'_')+'.'+ext; setDl();
@@ -557,10 +629,7 @@ async function buildTimeline(seekTrackId){
   activeSeg=-1; $('waveBusy').style.display='none';
   if(!total){ peaks=null; renderTracks(); renderMarks(); toast('音源を読み込めませんでした'); return; }
 
-  const buf=new ArrayBuffer(44+total*2), v=new DataView(buf);
-  const w=(o,s)=>{ for(let i=0;i<s.length;i++) v.setUint8(o+i,s.charCodeAt(i)); };
-  w(0,'RIFF'); v.setUint32(4,36+total*2,true); w(8,'WAVE'); w(12,'fmt '); v.setUint32(16,16,true); v.setUint16(20,1,true); v.setUint16(22,1,true);
-  v.setUint32(24,sr,true); v.setUint32(28,sr*2,true); v.setUint16(32,2,true); v.setUint16(34,16,true); w(36,'data'); v.setUint32(40,total*2,true);
+  const buf=new ArrayBuffer(44+total*2); writeWavHeader(new DataView(buf),total,sr);
   const pcm=new Int16Array(buf,44,total), N=1600, pk=new Float32Array(N), ps=new Uint16Array(N), scale=N/total;
   let g=0;
   dec.forEach((d,k)=>{ if(!d.data) return; const a=d.data;
@@ -732,6 +801,7 @@ function drawWave(){
   }
 }
 (function loop(){
+  if(mineReady){ $('mineCur').textContent=fmt(mine.currentTime); drawMineWave(); }
   if(modelReady){
     $('curT').textContent=fmt(model.currentTime);
     const k=segAt(model.currentTime);
