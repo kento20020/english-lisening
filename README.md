@@ -141,3 +141,4 @@ python3 -m http.server 8000
 | `privacy.html`, `support.html` | アプリのプライバシーポリシーとサポートのページ |
 | `docs/decisions.md` | 決めたことの記録（なぜそうしたか） |
 | `docs/roadmap.md` | iOS アプリのリリースまでのロードマップと、つまずきやすい所 |
+| `docs/android.md` | Android 版を作るときの、iOS 版との違いとロードマップ |
