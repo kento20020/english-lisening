@@ -6,7 +6,7 @@
 
 - Android 版も作る（iOS 版と同じ中身を使う）。違いと進め方は [`android.md`](android.md)。
 - Google Play では、課金するアプリの開発者の住所が公開される。これを了承した。
-- Android の実機はある（Google Play が使える機種かは確認中）。
+- Android の実機はある。
 - 確認したこと：**iOS には、Android のような「12人・14日」の公開前テストの義務はない。** 2026年10〜11月の TestFlight の不具合は、決まりではなく不具合とみられる（くわしくは [`roadmap.md`](roadmap.md) の段階1）。
 
 ## 2026-11-23　iOS アプリは、ログインなしで課金する
