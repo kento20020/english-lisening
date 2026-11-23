@@ -139,3 +139,4 @@ python3 -m http.server 8000
 | `app/` | Mimic の iOS アプリ（Capacitor） |
 | `codemagic.yaml` | Codemagic で iOS アプリをビルドして TestFlight に送る設定 |
 | `privacy.html`, `support.html` | アプリのプライバシーポリシーとサポートのページ |
+| `docs/decisions.md` | 決めたことの記録（なぜそうしたか） |
