@@ -68,10 +68,12 @@
 |---|---|---|
 | A Studio（`mimic/studio.html`） | パソコン・iPad でプロジェクトを作り込む人 | 波形を中心に1画面で全部見える。暗めの配色 |
 | B Pocket（`mimic/pocket.html`） | iPhone で片手で練習する人 | 録音ボタンを画面下のまん中に。下のタブで切り替え。ダークモード対応 |
-| C Phrase（`mimic/phrase.html`） | フレーズを順番に身につけたい人 | 印をフレーズのカードに。「用意 → 聞く → まねる」の順に進む |
+| C Phrase（`mimic/phrase.html`） | フレーズを順番に身につけたい人 | 印をフレーズのカードに。「用意 → 聞く → まねる」の順に進む。初めての人はサンプルですぐ試せる |
 
 - 仕組み（`mimic/mimic.js`）は Speak Back からそのままコピーしたものです。新しい機能は Speak Back に追加し、決まった案に取り込みます。
 - データは Speak Back とは別に保存します。Speak Back で「書き出し」したファイルを読み込めます。
+- サンプルのお手本（`mimic/sample/everyday-english.mp3`）は、音声合成 Piper とパブリックドメインの英語音声 LJSpeech から作ったものです。
+- 録音・再生まわりの直し（マイクが使えないときの案内、録音が終わったらマイクを放す、iPhone で音が鳴らない対策など）は `mimic/tools/sync_from_speakback.py` で入れています。Speak Back 本体にはまだ入っていません。
 
 ## Mimic の iOS アプリ
 

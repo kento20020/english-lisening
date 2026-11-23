@@ -184,6 +184,64 @@ select {
 .panel-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 14px; }
 .panel-foot p { flex: 1; min-width: 220px; margin: 0; font-size: 13px; color: var(--muted); }
 
+/* ---------- 初めての人への案内 ---------- */
+.welcome {
+  margin: 24px 0 4px;
+  padding: 22px 20px 18px;
+  border: 1.5px solid color-mix(in srgb, var(--accent) 35%, var(--line));
+  border-radius: 18px;
+  background: var(--accent-soft);
+}
+.welcome h2 { font-size: 22px; letter-spacing: .02em; }
+.welcome > p { margin: 6px 0 0; }
+.welcome-steps {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: wstep;
+}
+.welcome-steps li {
+  counter-increment: wstep;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--surface);
+  font-size: 14px;
+  line-height: 1.6;
+}
+.welcome-steps strong { display: flex; align-items: center; gap: 8px; margin-bottom: 2px; font-size: 16px; }
+.welcome-steps strong::before {
+  content: counter(wstep);
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--ink);
+  color: var(--bg);
+  font-size: 13px;
+}
+.welcome-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+.welcome-actions .btn { min-height: 48px; padding: 0 20px; font-size: 16px; }
+.primary-btn { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.primary-btn:hover:not(:disabled) { border-color: var(--accent); filter: brightness(1.08); }
+.welcome-note { margin: 12px 0 0; font-size: 13px; color: var(--muted); }
+.link-btn {
+  margin-left: 6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.step-lead { margin: -4px 0 14px; color: var(--muted); font-size: 14px; }
+
 /* ---------- 手順 ---------- */
 .flow {
   max-width: 760px;
@@ -472,6 +530,31 @@ select {
 #recBtn.recording { box-shadow: 0 0 0 8px #FFD0D0; }
 #recBtn.recording .dot { border-radius: 4px; }
 .rb-mid { flex: 1; min-width: 0; }
+.rb-phrase {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 8px 16px 0;
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent);
+  line-height: 1.5;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.mic-help {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  max-width: 760px;
+  margin: 10px auto 0;
+  padding: 10px 12px;
+  border: 1.5px solid color-mix(in srgb, var(--rec) 45%, transparent);
+  border-radius: 12px;
+  background: #FFF4F3;
+}
+.mic-help p { flex: 1; margin: 0; font-size: 14px; line-height: 1.6; }
+.mic-help-actions { display: flex; align-items: center; gap: 4px; flex: none; }
 #status { font-size: 14px; font-weight: 700; line-height: 1.5; }
 #status .rec-dot, #timer { color: var(--rec); }
 #timer { font-variant-numeric: tabular-nums; }
@@ -517,12 +600,25 @@ select {
   .tmeta { grid-column: 2; grid-row: 2; padding-left: 6px; }
   .tacts { grid-column: 3; grid-row: 1 / span 2; }
   .chips { margin-left: 0; }
-  #markers li { grid-template-columns: 40px auto minmax(0, 1fr) auto; }
-  #markers input { font-size: 18px; }
+  #markers li {
+    grid-template-columns: 40px auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      "name name name name"
+      "num play time acts";
+    padding: 12px 12px 10px;
+  }
+  #markers li.multi { padding-left: 9px; }
+  #markers input { font-size: 17px; }
+  .mnum { align-self: center; width: 32px; height: 32px; font-size: 14px; }
+  .rb-phrase { padding: 8px 12px 0; }
   .recbar-inner { gap: 8px; padding: 10px 12px; }
   #recBtn { width: 60px; height: 60px; }
   #status { font-size: 13px; }
-  .recbar .btn { width: 46px; min-height: 46px; padding: 0; justify-content: center; }
-  .recbar .btn span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-  .recbar .btn .ic { width: 20px; height: 20px; }
+  .recbar-inner .btn { flex-direction: column; gap: 2px; width: 50px; min-height: 52px; padding: 0; justify-content: center; font-size: 10px; line-height: 1.2; }
+  .recbar-inner .btn .ic { width: 20px; height: 20px; }
+  .welcome { margin-top: 18px; padding: 18px 16px 16px; }
+  .welcome h2 { font-size: 20px; }
+  .welcome-steps { grid-template-columns: 1fr; }
+  .welcome-actions .btn { flex: 1 1 100%; justify-content: center; }
+  .mic-help { margin: 8px 12px 0; }
 }

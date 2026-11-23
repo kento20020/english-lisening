@@ -246,19 +246,55 @@ let stream=null, recorder=null, chunks=[], lastBlob=null, lastUrl=null, recStart
 const mine=new Audio(); mine.preservesPitch=true;
 let actx=null, analyser=null;
 function getCtx(){ return actx || (actx=new (window.AudioContext||window.webkitAudioContext)()); }
+// iOS などでは、音の仕組みはタップの中でしか動き出さない。最初のタップで起こしておく（お手本が鳴らないのを防ぐ）
+['pointerdown','touchend','keydown'].forEach(t=>document.addEventListener(t,()=>{ try{ const c=getCtx(); if(c.state==='suspended') c.resume(); }catch(e){} },{capture:true,passive:true}));
 function pickMime(){
   for(const m of ['audio/webm;codecs=opus','audio/webm','audio/mp4','audio/ogg;codecs=opus'])
     if(window.MediaRecorder && MediaRecorder.isTypeSupported(m)) return m;
   return '';
 }
+// マイクが使えないときの案内（原因ごとに直し方を出す）
+let meterOn=false, recStarting=false;
+const inAppBrowser=/\bLine\/|FBAN|FBAV|Instagram|MicroMessenger/i.test(navigator.userAgent);
+const isIOSDevice=/iPhone|iPad|iPod/.test(navigator.userAgent)||(navigator.maxTouchPoints>1&&/Macintosh/.test(navigator.userAgent));
+function micPrecheck(){
+  if(!window.isSecureContext) return 'マイクを使うには、https:// で始まるページで開いてください。';
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia) return inAppBrowser
+    ? 'LINE などのアプリの中のブラウザでは、マイクが使えません。メニューから「Safari で開く」または「ブラウザで開く」を選んでください。'
+    : 'このブラウザはマイクに対応していません。Chrome や Safari の最新版で開いてください。';
+  if(!window.MediaRecorder) return 'このブラウザは録音に対応していません。iPhone なら iOS を最新にするか、Chrome や Safari の最新版で開いてください。';
+  return '';
+}
+function micMessage(e){
+  const n=e&&e.name;
+  if(n==='NotAllowedError'||n==='SecurityError'){
+    if(inAppBrowser) return 'アプリの中のブラウザでは、マイクが使えないことがあります。メニューから Safari や Chrome で開き直してください。';
+    if(isIOSDevice) return 'マイクが許可されていません。iPhone の「設定」→「Safari」→「マイク」を「確認」か「許可」にして、ページを読み込み直してください。';
+    return 'マイクが許可されていません。アドレスバーの左にあるアイコンからマイクを「許可」にして、もう一度録音ボタンを押してください。';
+  }
+  if(n==='NotFoundError'||n==='OverconstrainedError') return 'マイクが見つかりません。マイクやイヤホンがつながっているか確かめてください。';
+  if(n==='NotReadableError'||n==='AbortError') return 'マイクをほかのアプリが使っているようです。通話やほかの録音アプリを閉じてから、もう一度押してください。';
+  if(n==='NotSupportedError') return 'このブラウザではマイクを使えませんでした。Chrome や Safari の最新版で開いてください。';
+  return 'マイクを使えませんでした。ページを読み込み直して、もう一度試してください。';
+}
+function showMicProblem(msg){
+  $('status').textContent=msg;
+  // デザイン側が案内を出したときは、通知は出さない
+  const h=hooks().onMicProblem; let shown=false;
+  if(h){ try{ shown=!!h(msg); }catch(e){} }
+  if(!shown) toast('マイクを使えませんでした');
+}
+// 録音が終わったらマイクを放す（録音中の表示がずっと出たままにならないように）
+function releaseMic(){ if(stream){ try{ stream.getTracks().forEach(t=>t.stop()); }catch(e){} stream=null; } }
 async function ensureMic(){
   if(stream) return true;
+  const pre=micPrecheck(); if(pre){ showMicProblem(pre); return false; }
   try{
     stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:true}});
     analyser=getCtx().createAnalyser(); analyser.fftSize=512;
     getCtx().createMediaStreamSource(stream).connect(analyser);
-    meterLoop(); return true;
-  }catch(e){ $('status').textContent='マイクを使えませんでした。ブラウザのマイク許可を確認してください。'; return false; }
+    if(!meterOn){ meterOn=true; meterLoop(); } return true;
+  }catch(e){ showMicProblem(micMessage(e)); return false; }
 }
 function meterLoop(){
   const d=new Uint8Array(analyser.fftSize);
@@ -270,11 +306,13 @@ function meterLoop(){
 }
 async function toggleRec(){
   if(recorder && recorder.state==='recording'){ recorder.stop(); return; }
-  if(!await ensureMic()) return;
+  if(recStarting) return; recStarting=true;
+  try{ if(!await ensureMic()) return; } finally { recStarting=false; }
   if(actx&&actx.state==='suspended') actx.resume();
   mine.pause(); chunks=[];
   const mime=pickMime();
-  recorder=new MediaRecorder(stream,mime?{mimeType:mime}:undefined);
+  try{ recorder=new MediaRecorder(stream,mime?{mimeType:mime}:undefined); }
+  catch(e){ try{ recorder=new MediaRecorder(stream); }catch(e2){ releaseMic(); showMicProblem('このブラウザでは録音を始められませんでした。Chrome や Safari の最新版で開いてください。'); return; } }
   recorder.ondataavailable=e=>{ if(e.data.size) chunks.push(e.data); };
   recorder.onstop=onRecStop; recorder.start();
   recStart=performance.now();
@@ -286,7 +324,10 @@ function onRecStop(){
   clearInterval(timerId);
   $('recBtn').classList.remove('recording'); $('recLabel').textContent='録音';
   if($('syncModel').checked && modelReady) model.pause();
-  lastBlob=new Blob(chunks,{type:recorder.mimeType||'audio/webm'});
+  releaseMic();
+  const recBlob=new Blob(chunks,{type:recorder.mimeType||'audio/webm'});
+  if(!recBlob.size || performance.now()-recStart<350){ $('status').textContent='短すぎたので録音しませんでした。録音ボタンを押して話し、話し終わったらもう一度押してください。'; return; }
+  lastBlob=recBlob;
   const dur=(performance.now()-recStart)/1000;
   if(lastUrl) URL.revokeObjectURL(lastUrl);
   lastUrl=URL.createObjectURL(lastBlob); mine.src=lastUrl;
@@ -297,7 +338,7 @@ function onRecStop(){
 function playMine(){
   if(!lastUrl) return; model.pause();
   const r=+$('mineRate').value; mine.defaultPlaybackRate=r; mine.playbackRate=r;
-  mine.currentTime=0; mine.play(); $('status').textContent='再生中…'+(r!==1?'（'+r+'×）':'');
+  mine.currentTime=0; mine.play().catch(()=>{ $('status').textContent='録音を再生できませんでした。もう一度録音してください。'; }); $('status').textContent='再生中…'+(r!==1?'（'+r+'×）':'');
 }
 mine.onended=()=>{ $('status').textContent='再生終了。もう一度録るなら Space / 録音ボタン'; };
 $('mineRate').onchange=()=>{ mine.playbackRate=+$('mineRate').value; };
