@@ -36,6 +36,8 @@ B Pocket（`mimic/pocket.html`）のデザインを、Capacitor で iPhone ア�
 
 ## App Store に出すまでの手順
 
+全体の流れ・目安の期間・つまずきやすい所は [`docs/roadmap.md`](../docs/roadmap.md) にまとめています。
+
 ### 1. Apple Developer Program に登録する（個人）
 
 - https://developer.apple.com/programs/enroll/ から登録します（年12,980円）。
