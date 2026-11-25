@@ -3,6 +3,28 @@
 Claude Duet や Claude Code から頼んだ作業の、今の状態と次にやることを新しい順に残します。
 Claude Code で続きを始めるときは、まずこのファイルと `docs/decisions.md`・`docs/roadmap.md` を読んでください。
 
+## 2026-11-26　リスニング教材づくりの仕組みを追加（ブランチ `claude/listening-content`）
+
+英文を書いたファイルから、お手本の音声と時刻のデータと、Speak Back で読み込めるプロジェクトファイルを作る仕組みを、新しいフォルダ `tools/content/` に作った。既存のファイルは変えていない。既定ブランチにはまだ入れていない。
+
+- **使い方：** `tools/content/README.md`。例のレッスンは `tools/content/lessons/everyday.txt`（12文、日本語訳つき）。
+- **声：** Piper の `en_US-ljspeech-medium`（パブリックドメインの LJSpeech から作った声。今のサンプルと同じ系統）。お金も API キーもいらない。
+- **できるもの：** WAV、MP3（ffmpeg があれば）、文ごと・単語ごとの時刻の JSON、Speak Back のプロジェクトファイル（文ごとに印つき。「⬆ プロジェクトファイルを読み込む」で開ける）。
+- **速さ：** `--speed 0.85` などでゆっくりにできる。
+- **単語の時刻：** Piper が返す音の長さから出している。Piper が 2 語を 1 つにまとめた所だけ推定（`"estimated": true`）。
+- **テスト：** `cd tools/content && python3 -m unittest`（23 件、声のモデルなしで動く）。
+
+### まだ確かめていないこと
+
+- **本物の声での合成：** Claude の作業環境からは Hugging Face（声のモデルの置き場）につながらなかったので、声だけ差し替えて動きを確かめた。Ken の PC で一度 `--download` 付きで動かし、音と単語の時刻を確かめる必要がある。
+- MP3 は WAV より約 0.05 秒長い（MP3 の作り方の都合）。ずれが気になるときは `--speakback-audio wav`。
+
+### 次にやること
+
+1. Ken の PC で、例のレッスンを本物の声で作って Speak Back に読み込んでみる
+2. よければ既定ブランチに入れる（Ken の OK のあと）
+3. レッスンを増やす（場面別、速さ別）。聞き取りの問題を足すかは相方と相談
+
 ## 2026-11-26　分担を整理（Claude Duet から）
 
 Ken に確かめて、**Nyankohihi さんが一緒に作っている相方**だと分かった。コードは変えていない。
