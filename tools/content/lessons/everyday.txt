@@ -1,0 +1,16 @@
+# 1 行目（空行と # の行は数えない）がタイトル。そのあとは 1 行に 1 文。
+# 「 | 」のあとに日本語訳を書いてもよい（なくてもよい）。
+Everyday English
+
+Hi, how are you doing today? | 今日の調子はどう？
+Could you say that again, please? | もう一度言っていただけますか？
+I'd like a cup of coffee, please. | コーヒーを1杯ください。
+Where is the nearest station? | いちばん近い駅はどこですか？
+Thank you so much for your help. | 助けてくれて本当にありがとう。
+The weather is really nice today. | 今日は本当にいい天気ですね。
+What time does the store open? | お店は何時に開きますか？
+Can I pay by card? | カードで払えますか？
+I'm sorry, I'm running a little late. | ごめんなさい、少し遅れています。
+Let's meet in front of the library at noon. | 正午に図書館の前で会いましょう。
+How long does it take to get there? | そこまでどれくらいかかりますか？
+Have a great weekend! | よい週末を！

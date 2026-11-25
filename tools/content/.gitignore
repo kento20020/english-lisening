@@ -1,0 +1,10 @@
+# 声のモデル（大きい・あとから取ってこられる）
+voices/
+*.onnx
+*.onnx.json
+# 作った教材（音声入りで大きい）
+out/
+*.wav
+*.mp3
+*.speakback.json
+__pycache__/

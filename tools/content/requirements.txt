@@ -1,0 +1,2 @@
+# Piper（音声合成）。[alignment] は単語ごとの時刻を取るために onnx も入れる
+piper-tts[alignment]==1.8.0
